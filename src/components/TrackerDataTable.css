@@ -8,3 +8,24 @@
     background: #fff;
     z-index: 1;
 }
+.clickable-row {
+    cursor: pointer;
+}
+.DataTableCell {
+    padding: 8px 16px; /* Adjust padding for better spacing */
+    text-align: left;
+    vertical-align: middle;
+    max-width: 150px; 
+}
+.DataTableColumnHeader {
+    font-weight: bold;
+}
+.layout {
+    display: flex; /* Use Flexbox for layout */
+  }
+  
+  .content {
+    flex: 1; /* Take the remaining width not occupied by the sidebar */
+    padding: 16px; /* Optional: Add padding around the content */
+  }
+  
