@@ -1,5 +1,5 @@
 {
-  "name": "predict-mdrtb",
+  "name": "dhis2-app",
   "version": "1.0.0",
   "description": "",
   "license": "BSD-3-Clause",
@@ -20,6 +20,8 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/react-router-dom": "^5.3.3",
+    "chart.js": "^4.4.7",
+    "d3": "^7.9.0",
     "i": "^0.3.7",
     "npm": "^10.9.0",
     "prop-types": "^15.8.1",

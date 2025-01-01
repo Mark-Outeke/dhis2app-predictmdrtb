@@ -46,7 +46,7 @@ type Enrollment = {
     orgUnitName: string;
 };
 
-type TrackedEntityInstance = {
+export type TrackedEntityInstance = {
     trackedEntityInstance: string;
     orgUnitName: string;
     created: string;
@@ -75,8 +75,13 @@ const CustomDataTableRow: React.FC<CustomDataTableRowProps> = ({ onClick, childr
   );
 };
 
+// Add a new prop type for the TrackerDataTable
+interface TrackerDataTableProps {
+    onEntitySelect: (entity: TrackedEntityInstance) => void; // Prop to handle selected entity
+}
 
-export default function TrackerDataTable() {
+
+export default function TrackerDataTable({ onEntitySelect }: TrackerDataTableProps) {
     const { loading, error, data } = useDataQuery<QueryResult>(query);
     const history = useHistory();
 
@@ -84,9 +89,7 @@ export default function TrackerDataTable() {
     const [pageSize, setPageSize] = useState(50);
     const [searchTerm, setSearchTerm] = useState('');
 
-    const handleEntitySelect = (entity: TrackedEntityInstance) => {
-        history.push(`/TrackedEntityDetails/${entity.trackedEntityInstance}`);
-    };
+    
 
     if (loading) return <CircularLoader />;
     if (error) return <p>Error: {error.message}</p>;
@@ -112,9 +115,13 @@ export default function TrackerDataTable() {
           instance.attributes.find((attr) => attr.attribute === code)?.value || '';
 
         const enrollment = instance.enrollments[0];
+        const handleRowClick = () => {
+            onEntitySelect(instance); // Call the parent function to pass the entity
+            history.push(`/TrackedEntityDetails/${instance.trackedEntityInstance}`); // Navigate to details page
+        };
 
         return (
-          <CustomDataTableRow key={instance.trackedEntityInstance} onClick={() => handleEntitySelect(instance)}>
+          <CustomDataTableRow key={instance.trackedEntityInstance} onClick={handleRowClick}>
                     <DataTableCell>{enrollment?.orgUnitName || 'N/A'}</DataTableCell>
                     <DataTableCell>{new Date(instance.created).toLocaleDateString()}</DataTableCell>
                     <DataTableCell>{getAttribute('ZkNZOxS24k7')}</DataTableCell>

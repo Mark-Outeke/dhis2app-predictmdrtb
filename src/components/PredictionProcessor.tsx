@@ -1,81 +1,177 @@
 import React, { useEffect, useState } from 'react';
-import * as tf from '@tensorflow/tfjs';
+import { useDataQuery } from '@dhis2/app-runtime'; // Use DHIS2 app-runtime for data queries
 import { Doughnut } from 'react-chartjs-2'; // Import Doughnut chart component
-import { Chart, registerables } from 'chart.js'; // Import Chart and registerables
-import * as d3 from 'd3';
+import * as tf from '@tensorflow/tfjs'; // Import TensorFlow.js for predictions
+//import { TrackedEntityInstance } from './TrackerDataTable';
+import { Chart, ArcElement } from 'chart.js';
 
-Chart.register(...registerables); // Register all necessary chart components
+// Register the required elements
+Chart.register(ArcElement);
 
-interface PredictionComponentProps {}
+// Define the interface for tracked entity data
+interface DataValue { dataElement: string; value: string; }
+interface Event { event: string; dataValues: DataValue[]; }
+interface Enrollment { events: Event[]; }
+interface TrackedEntity { enrollments?: Enrollment[]; id: string; attributes: Record<string, any>;}
+interface PredictionComponentProps { trackedEntityId: string;}
 
-interface FeatureContribution {
-  featureId: string;
-  contribution: number;
-}
 
-interface TrackedEntityData {
-  enrollments: any[];
-}
+const trackedEntityQuery = {
+    trackedEntities: {
+        resource: "trackedEntityInstances",
+        id: ({ trackedEntityId }: { trackedEntityId: string }) => trackedEntityId,
+        params: {
+            ou: 'akV6429SUqu',
+            ouMode: 'DESCENDANTS',
+            program : "wfd9K4dQVDR",
+            fields: [
+                "trackedEntityInstance",
+                "enrollments",
+                "created",
+                "attributes",
+                "orgUnitName",
+                "events",
+                "coordinates",
+            ],
+        },
+    },
+};
 
-const PredictionComponent: React.FC<PredictionComponentProps> = () => {
-  const [predictions, setPredictions] = useState<number[]>([]);
-  const [featureContributions, setFeatureContributions] = useState<FeatureContribution[][]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Track if predictions are running
-  const [hasRunPredictions, setHasRunPredictions] = useState<boolean>(false); // Track if predictions have been made
-  const [averagePrediction, setAveragePrediction] = useState<number[]>([]);
-  const [highestAveragePrediction, setHighestAveragePrediction] = useState<number[]>([]);
-  const [predictedClass, setPredictedClass] = useState<string>('');
-  const [dataElementDisplayNames, setDataElementDisplayNames] = useState<Record<string, string>>({}); // Mapping of IDs to display names
-  const [reverseDataElementDisplayNames, setReverseDataElementDisplayNames] = useState<Record<string, string>>({}); // New state for reverse mapping
-  const [error, setError] = useState<string | null>(null);
-  const [featureAttributions, setFeatureAttributions] = useState<any[]>([]); 
-  const [mappedIGValues, setMappedIGValues] = useState<any[]>([]);
-  const [finalAveragedIGValues, setFinalAVerageIGValues] = useState<any[]>([]);
-  const [isDisplayNamesFetched, setIsDisplayNamesFetched] = useState<boolean>(false); // Track if display names have been fetched
 
-  const silenceWarnings = (...args: any[]) => {};
+const PredictionComponent: React.FC <PredictionComponentProps>= ({ trackedEntityId }) => {
+    console.log("Received trackedEntityId:", trackedEntityId);
+    const { loading, error, data } = useDataQuery(trackedEntityQuery,{
+        variables: { trackedEntityId },}
+    );
+    const [predictions, setPredictions] = useState<number[]>([]);
+    const [labels, setLabels] = useState<string[]>([]);
+    const [trackedEntities, setTrackedEntities] = useState<TrackedEntity[]>([]);
 
-  useEffect(() => {
-    silenceWarnings(predictions, averagePrediction);
-  }, [predictions, averagePrediction]);
+    useEffect(() => {
+        // Handle loading state
+        if (loading) {
+            return;
+        }
+        // Handle error
+        if (error) {
+            console.error("Error fetching tracked entities:", error);
+            return;
+        }
+        // Set tracked entities from fetched data
+        const fetchedTrackedEntity = data?.trackedEntities;
+        setTrackedEntities(fetchedTrackedEntity);
 
-  useEffect(() => {
-    const fetchDataElementDisplayNames = async () => {
-      if (!trackedEntityData) return;
-      try {
-        const response = await tracker.legacy.GetDataElementsNameByID({ 
-          paging: false
-        });
-        const dataElements = response.data.dataElements;
+        console.log("Tracked entity:", fetchedTrackedEntity);
 
-        if (!Array.isArray(dataElements)) {
-          throw new Error('Expected dataElements to be an array');
+        if (fetchedTrackedEntity) {
+            const extractedData = extractDataElements(fetchedTrackedEntity);
+            const processedData = processExtractedData(extractedData, categoricalColumns, numericColumns);
         }
 
-        const displayNameMapping: Record<string, string> = {};
-        const reverseDisplayNameMapping: Record<string, string> = {}; // New mapping for reverse lookup
-        dataElements.forEach((element: { id: string; displayName: string }) => {
-          displayNameMapping[element.id] = element.displayName;
-          reverseDisplayNameMapping[element.displayName] = element.id; // Populate reverse mapping
+
+    }, [loading, error, data]);
+
+    const categoricalColumns =     [ 'LRzaAyb2vGk','hDaev1EuehO', 'Aw9p1CCIkqL',
+        'TFS9P7tu6U6', 'dtRfCJvzZRF', 'CxdzmL6vtnx', 'U4jSUZPF0HH', 'pDoTShM62yi',
+        'PZvOW11mGOq', 'axDtvPeYL2Y', 'FklL99yLd3h', 'FhUzhlhPXqV', 'sM7PAEYRqEP',
+        'FZMwpP1ncnZ', 'QzfjeqlwN2c', 't1wRW4bpRrj', 'SoFmSjG4m2N', 'WTz4HSqoE5E',
+        'E0oIYbS2lcV', 'f0S6DIqAOE5', 't6qq4TXSE7n', 'pD0tc8UxyGg', 'vKn3Mq4nqOF',
+        'ZjimuF1UNdY', 'qZKe08ZA2Jl', 'b801bG8cIxt', 'Nf4Tz0J2vA6', 'pZgD6CYOa96',
+        'pg6UUMn87eM', 'EWsKHldwJxa', 'TevjEqHRBdC', 'x7uZB9y0Qey', 'f02UimVxEc2',
+        ]; // Replace with actual IDs
+  
+  const numericColumns = ['Ghsh3wqVTif', 'xcTT5oXggBZ', 'WBsNDNQUgeX', 
+                          'HzhDngURGLk', 'vZMCHh6nEBZ', 'A0cMF4wzukz', 
+                          'IYvO501ShKB', 'KSzr7m65j5q', 'QtDbhbhXw8w',
+                          'jnw3HP0Kehx', 'R8wHHdIp2zv', 'gCQbn6KVtTn', 
+                          'IrXoOEno4my', 'BQVLvsEJmSq', 'YFOzTDRhjkF',];
+
+
+    const extractDataElements = (entity: TrackedEntity) => {
+            let extractedData: Record<string, Record<string, string | number | null>> = {};
+
+            // Extracting data from enrollments
+            if (entity.enrollments) {
+                entity.enrollments.forEach(enrollment => {
+                    enrollment.events.forEach(event => {
+                        let eventData: Record<string, string | number | null> = {};
+                        event.dataValues.forEach(dataValue => {
+                            if (categoricalColumns.includes(dataValue.dataElement)) {
+                                eventData[dataValue.dataElement] = dataValue.value !== undefined ? dataValue.value : null;
+                            } else if (numericColumns.includes(dataValue.dataElement)) {
+                                // Convert to number
+                                const numericValue = parseFloat(dataValue.value);
+                                eventData[dataValue.dataElement] = !isNaN(numericValue) ? numericValue : 0;
+                            }
+                        });
+                        extractedData[event.event] = eventData;
+                    });
+                });
+            }
+            console.log("Extracted data:", extractedData);
+            return extractedData;
+        };
+
+// Define types for the processed data
+type EventProcessedData = Record<string, string | number | null>;
+type ProcessedEvent = { event: string; data: EventProcessedData };
+
+// Function to process extracted data
+const processExtractedData = (
+    extractedData: Record<string, Record<string, string | number | null>>,
+    categoricalColumns: string[],
+    numericColumns: string[]
+): ProcessedEvent[] => {
+    // Initialize processedData as an array to store events
+    const processedData: ProcessedEvent[] = [];
+
+    console.log("Extracted Data for Processing:", extractedData); // Log the extracted data
+
+    // Iterate over extractedData to combine values for each data element per event
+    Object.entries(extractedData).forEach(([eventName, eventData]) => {
+        
+
+        // Create an object for each event
+        const eventProcessedData: EventProcessedData = {};
+
+        // Initialize all columns with a default value based on column type
+        categoricalColumns.forEach((column) => {
+            eventProcessedData[column] = 0; // Default for missing categorical entries
+        });
+        numericColumns.forEach((column) => {
+            eventProcessedData[column] = 0; // Default for missing numerical entries
         });
 
-        setDataElementDisplayNames(displayNameMapping);
-        setReverseDataElementDisplayNames(reverseDisplayNameMapping); // Set reverse mapping in state
-        setIsDisplayNamesFetched(true);
-      } catch (error) {
-        console.error('Error fetching data element display names:', error);
-        setError('Failed to fetch data element display names');
-      }
-    };
+        // Populate eventProcessedData with actual values from eventData
+        Object.entries(eventData).forEach(([dataElement, value]) => {
+            if (categoricalColumns.includes(dataElement)) {
+                eventProcessedData[dataElement] = value !== undefined ? value : 0;
+            } else if (numericColumns.includes(dataElement)) {
+                eventProcessedData[dataElement] = value !== undefined ? value : 0;
+            }
+        });
 
-    fetchDataElementDisplayNames();
-  }, [trackedEntityData]);
+        //console.log(`Processed data for event ${eventName}:`, eventProcessedData); // Log the processed data for the event
 
-  // ... (Continue transforming the rest of the code with similar TypeScript adjustments)
+        // Add the processed event to the array
+        processedData.push({ event: eventName, data: eventProcessedData });
+    });
 
-  return (
-    // Your JSX markup goes here
-  );
+    console.log('Final Processed Data:', processedData); // Log the final processed data
+
+    // Return processed data
+    return processedData;
+};
+
+
+   
+
+    return (
+        <div>
+            <h1>Prediction Component</h1>
+            <p>This component is responsible for predicting the likelihood of a tracked entity instance to be a case of a particular disease.</p>
+            </div>
+    );
 };
 
 export default PredictionComponent;
