@@ -44,8 +44,11 @@ const PredictionComponent: React.FC <PredictionComponentProps>= ({ trackedEntity
         variables: { trackedEntityId },}
     );
     const [predictions, setPredictions] = useState<number[]>([]);
-    const [labels, setLabels] = useState<string[]>([]);
+    //const [labels, setLabels] = useState<string[]>([]);
     const [trackedEntities, setTrackedEntities] = useState<TrackedEntity[]>([]);
+    const [model, setModel] = useState<tf.LayersModel | null>(null)
+    const [tensorInputs, setTensorInputs] = useState<number[][]>([]);
+    const [predictionsMade, setPredictionsMade] = useState<boolean>(false);
 
     useEffect(() => {
         // Handle loading state
@@ -63,15 +66,53 @@ const PredictionComponent: React.FC <PredictionComponentProps>= ({ trackedEntity
 
         console.log("Tracked entity:", fetchedTrackedEntity);
 
+       
+    
+
         if (fetchedTrackedEntity) {
             const extractedData = extractDataElements(fetchedTrackedEntity);
+            console.log("Extracted Data:", extractedData); // Log extracted data
+    
             const processedData = processExtractedData(extractedData, categoricalColumns, numericColumns);
-        }
+            console.log("Processed Data:", processedData); // Log processed data
+    
+            // Call labelEncode and log the encoded data
+            const encodeAndLogData = async () => {
+                try {
+                    const labelEncoders = await loadLabelEncoders();
+                   // console.log("Label Encoders:", labelEncoders); // Log label encoders
+    
+                    const encodedData = await labelEncode(processedData, categoricalColumns);
+                    console.log('Final Encoded Data:', encodedData); // Log the encoded data
 
+                    const scaledData = await scaleNumericData(encodedData, numericColumns);
+                    console.log('Final Scaled Data:', scaledData);
 
-    }, [loading, error, data]);
+                    // Now extract tensor inputs from scaled data
+                    const tensorInputs = extractTensorInputs(scaledData) as number[][];
+                    setTensorInputs(tensorInputs);
+                    console.log('Tensor Inputs:', tensorInputs);
+                    
+                     // Now you can call makePredictions here and log the predictions
+                    if (model && tensorInputs.length > 0) {
+                        const predictions = await makePredictions();
+                        console.log('Prediction:', predictions);
+                    }
+                     
+                     
+                } catch (encodeError) {
+                    console.error('Error encoding data:', encodeError);
+                }
+            };
+    
+            encodeAndLogData(); // Call the async function
+        };
+        
+        
 
-    const categoricalColumns =     [ 'LRzaAyb2vGk','hDaev1EuehO', 'Aw9p1CCIkqL',
+    }, [loading, error, data , model, predictionsMade]);
+
+    const categoricalColumns =     [ 'LRzaAyb2vGk',  'hDaev1EuehO', 'Aw9p1CCIkqL',
         'TFS9P7tu6U6', 'dtRfCJvzZRF', 'CxdzmL6vtnx', 'U4jSUZPF0HH', 'pDoTShM62yi',
         'PZvOW11mGOq', 'axDtvPeYL2Y', 'FklL99yLd3h', 'FhUzhlhPXqV', 'sM7PAEYRqEP',
         'FZMwpP1ncnZ', 'QzfjeqlwN2c', 't1wRW4bpRrj', 'SoFmSjG4m2N', 'WTz4HSqoE5E',
@@ -80,7 +121,7 @@ const PredictionComponent: React.FC <PredictionComponentProps>= ({ trackedEntity
         'pg6UUMn87eM', 'EWsKHldwJxa', 'TevjEqHRBdC', 'x7uZB9y0Qey', 'f02UimVxEc2',
         ]; // Replace with actual IDs
   
-  const numericColumns = ['Ghsh3wqVTif', 'xcTT5oXggBZ', 'WBsNDNQUgeX', 
+    const numericColumns = ['Ghsh3wqVTif', 'xcTT5oXggBZ', 'WBsNDNQUgeX', 
                           'HzhDngURGLk', 'vZMCHh6nEBZ', 'A0cMF4wzukz', 
                           'IYvO501ShKB', 'KSzr7m65j5q', 'QtDbhbhXw8w',
                           'jnw3HP0Kehx', 'R8wHHdIp2zv', 'gCQbn6KVtTn', 
@@ -163,13 +204,222 @@ const processExtractedData = (
     return processedData;
 };
 
+interface ProcessedData {
+    event: string;
+    data: Record<string, string | number | null>;
+}
 
+interface LabelMapping {
+    classes: string[];
+    mapping: Record<string, number>;
+}
+
+interface LabelEncoder {
+    [label: string]: LabelMapping;
+}
+
+const loadLabelEncoders = async (): Promise<LabelEncoder> => {
+    try {
+    const response = await fetch('/label_encoders.json');
+        if (!response.ok) {
+            throw new Error('Failed to load label encoders');
+        }
+        const labelEncoders: LabelEncoder = await response.json();
+        //console.log('Loaded label encoders:', labelEncoders);
+        return labelEncoders;
+    }catch (encodeError) {
+    console.error('Error loading label encoders:', encodeError);
+    throw encodeError;
+    }
+};
+
+const labelEncode = async (processedDataArray: ProcessedData[], categoricalColumns: string[]): Promise<ProcessedData[]> => {
+    const labelEncoders: LabelEncoder = await loadLabelEncoders();
+    console.log('processing data for label encoding:', processedDataArray);
+    const encodedData = processedDataArray.map(row => {
+        const newData = new Map<string, string | number | null>(Object.entries(row.data));
+
+        categoricalColumns.forEach((col) => {
+            const labelEncoder = labelEncoders[col];
+            if (labelEncoder && labelEncoder.mapping) {
+                const originalValue = newData.get(col);
+                const mapping = labelEncoder.mapping;
+
+                if (mapping[originalValue as string] !== undefined) {
+                    newData.set(col, mapping[originalValue as string]);
+                } else {
+                    newData.set(col, 0); // Handle unknown values
+                }
+            }
+        });
+
+        return { ...row, data: Object.fromEntries(newData) };
+    });
+
+    return encodedData;
+};
+
+// Define types for the scaler and the data structure
+interface Scaler {
+    [key: string]: {
+      mean: number;
+      scale: number;
+    };
+  }
+  
+  interface RowData {
+    [key: string]: number | string | null; // Can include other types depending on your data structure
+  }
+  
+  interface DataRow {
+    data: RowData;
+  }
+  
+  // Normalize numeric data
+  const loadNumericScaler = async (): Promise<Scaler> => {
+    const response = await fetch('/numeric_scaler.json');
+    if (!response.ok) {
+      throw new Error('Failed to load numeric scaler');
+    }
+    return await response.json(); // Load and return the JSON content
+  };
+  
+  // Scale numeric data
+  const scaleNumericData = async (data: DataRow[], numericColumns: string[]): Promise<DataRow[]> => {
+    const scaler = await loadNumericScaler(); // Load the scaler
+    
+    // Ensure the scaler contains mean and scale for each numeric column
+    if (!numericColumns.every(col => scaler[col])) {
+      throw new Error('Scaler is missing data for one or more numeric columns');
+    }
+  
+    // Scale numeric data
+    data.forEach(row => {
+      numericColumns.forEach(col => {
+        const { mean, scale } = scaler[col]; // Get mean and scale for the current column
+        let value = parseFloat(row.data[col] as string); // Cast to string for parsing
+  
+
+       // console.log(`Scaling value for column '${col}':`, { originalValue: value, mean, scale });
+        // Apply scaling formula and ensure no negative values
+        if (!isNaN(value)) {
+          row.data[col] = Math.max(0, (value - mean) / scale); // Scale the value while ensuring it's non-negative
+        } else {
+          row.data[col] = 0; // Handle if value is NaN
+        }
+      });
+    });
+  
+    return data; // Return scaled data
+  };
+
+  const extractTensorInputs = (data) => {
+    if (!data || !Array.isArray(data)) {
+      console.error('Invalid data for extracting tensor inputs:', data);
+      return []; // Return an empty array or handle it as appropriate
+    }
+  
+    return data.map(row => {
+        const values = Object.values(row.data);
+        // Log the type of each value
+        values.forEach((value, index) => {
+          if (typeof value !== 'number') {
+            console.error(`Value at index ${index} is not a number:`, value);
+          }
+        });
+        return values; // Extract values from each row
+      });
+  };
+
+ // const tensorInputs = extractTensorInputs(scaledData);
+      //console.log('tensorInputs:', tensorInputs);
+  // Define the prediction model
+
+  useEffect(() => {
+
+     // log the loded modle
+     if (model) {
+        console.log('Loaded model:', model);
+    } else {
+        console.log('Model is not loaded yet.');
+    }
+    const loadModel = async () => {
+      try {
+        const loadedModel = await tf.loadLayersModel('/model.json');
+        loadedModel.compile({
+          optimizer: 'adam', // Specify your optimizer
+          loss: 'binaryCrossentropy', // Use appropriate loss based on your model
+          metrics: ['accuracy'], // Metrics for tracking
+        });
+        setModel(loadedModel);
+        console.log('Model loaded successfully.');
+      } catch (error) {
+        console.error('Error loading the TensorFlow model:', error);
+      }
+    };
+
+    loadModel(); // Call the async function to load the model
+  }, []);
+
+
+
+  const makePredictions = async () => { 
+    if (model && tensorInputs.length > 0) {
+        console.log('Running Predictions...');
+        const predictions: number[] =[];
+    
+        for (let i = 0; i < tensorInputs.length; i++) {
+            const inputTensor = tensorInputs[i]; // Create a tensor for the current row
+            // Adjust the shape based on the model's input requirements
+            const reshapedInput = tf.tensor(inputTensor).reshape([1, 1, 48]); // Assuming 2D input shape [1, 48]
+            
+            const outputTensor = model.predict(reshapedInput) as tf.Tensor; // Make predictions
+            //console.log('outputTensor for input', i, ':', outputTensor); 
+            const predictionArray = outputTensor.arraySync(); // Extract array
+            //console.log('predictionArray for input', i, ':', predictionArray); 
+            const predictionValue = predictionArray[0]; // Get first output class probabilities
+    
+            // Handle different output shapes based on your model
+            if (Array.isArray(predictionValue)) {
+                // If predictionValue is an array, assume binary classification
+                predictions.push(predictionValue[1] || predictionValue[0]);
+            } else {
+                // If predictionValue is a single number, handle it accordingly
+                // For binary classification, you might want to use a threshold
+                predictions.push(predictionValue);
+            }
+        }
+        setPredictions(predictions); // Store the predictions in state
+        setTensorInputs([]); // Clear the tensor inputs after making predictions
+        // Log all predictions to the console
+        console.log('ALL Predictions:', predictions);
+    } else {
+        console.log('Model or tensorInputs not ready for predictions.');
+    }
+};
+
+    useEffect(() => {
+        if (model && tensorInputs.length > 0 && !predictionsMade) {
+            makePredictions();
+        }
+    }, [model, tensorInputs, predictionsMade]);
+    
    
+                    
+
+
+
+
+  
 
     return (
         <div>
-            <h1>Prediction Component</h1>
+            <h1>Prediction Overview</h1>
             <p>This component is responsible for predicting the likelihood of a tracked entity instance to be a case of a particular disease.</p>
+            {/* Render your predictions or other UI elements here */}
+             {predictions.map((prediction, index) => (
+        <div key={index}>Prediction for input {index}: {prediction}</div>
+      ))}
             </div>
     );
 };
