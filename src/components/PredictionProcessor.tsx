@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useDataQuery } from '@dhis2/app-runtime'; // Use DHIS2 app-runtime for data queries
-import { Doughnut } from 'react-chartjs-2'; // Import Doughnut chart component
+import { Doughnut, Bar } from 'react-chartjs-2'; // Import Doughnut chart component
 import * as tf from '@tensorflow/tfjs'; // Import TensorFlow.js for predictions
 //import { TrackedEntityInstance } from './TrackerDataTable';
-import { Chart, ArcElement } from 'chart.js';
+import { Chart, ArcElement, registerables } from 'chart.js';
 
 // Register the required elements
-Chart.register(ArcElement);
+Chart.register(ArcElement, ...registerables );
 
 // Define the interface for tracked entity data
 interface DataValue { dataElement: string; value: string; }
@@ -49,6 +49,11 @@ const PredictionComponent: React.FC <PredictionComponentProps>= ({ trackedEntity
     const [model, setModel] = useState<tf.LayersModel | null>(null)
     const [tensorInputs, setTensorInputs] = useState<number[][]>([]);
     const [predictionsMade, setPredictionsMade] = useState<boolean>(false);
+    const [chartData, setChartData] = useState<any>(null);
+    const [featureImportanceChartData, setFeatureImportanceChartData] = useState<any>(null);
+    //const [categoricalColumns, setCategoricalColumns] = useState<string[]>([]);
+    //const [numericColumns, setNumericColumns] = useState<string[]>([]);
+    const [averagePrediction, setAveragePrediction] = useState<number | null>(null);
 
     useEffect(() => {
         // Handle loading state
@@ -96,7 +101,7 @@ const PredictionComponent: React.FC <PredictionComponentProps>= ({ trackedEntity
                      // Now you can call makePredictions here and log the predictions
                     if (model && tensorInputs.length > 0) {
                         const predictions = await makePredictions();
-                        console.log('Prediction:', predictions);
+                        //console.log('Prediction:', predictions);
                     }
                      
                      
@@ -374,11 +379,12 @@ interface Scaler {
             const reshapedInput = tf.tensor(inputTensor).reshape([1, 1, 48]); // Assuming 2D input shape [1, 48]
             
             const outputTensor = model.predict(reshapedInput) as tf.Tensor; // Make predictions
-            //console.log('outputTensor for input', i, ':', outputTensor); 
+            console.log('outputTensor ', outputTensor); 
+            console.log('outputTensor.shape ', outputTensor.shape); 
             const predictionArray = outputTensor.arraySync(); // Extract array
-            //console.log('predictionArray for input', i, ':', predictionArray); 
-            const predictionValue = predictionArray[0]; // Get first output class probabilities
-    
+            console.log('predictionArray', predictionArray); 
+            const predictionValue = predictionArray[0][0][0]; // Get first output class probabilities
+            console.log('predictionValue', predictionValue); 
             // Handle different output shapes based on your model
             if (Array.isArray(predictionValue)) {
                 // If predictionValue is an array, assume binary classification
@@ -389,14 +395,122 @@ interface Scaler {
                 predictions.push(predictionValue);
             }
         }
+
+        const averagePrediction = predictions.reduce((acc, curr) => acc + curr, 0) / predictions.length;
+        setAveragePrediction(averagePrediction); // Store the average prediction in state
+        // Determine 'yes' or 'no' based on the threshold
+        const result = averagePrediction >= 0.5 ? 'Yes' : 'No';
+
         setPredictions(predictions); // Store the predictions in state
         setTensorInputs([]); // Clear the tensor inputs after making predictions
+        setPredictionsMade(true); // Set the flag to true to avoid making predictions again
         // Log all predictions to the console
         console.log('ALL Predictions:', predictions);
-    } else {
+        console.log('Average Prediction:', averagePrediction);
+        console.log('Result:', result);
+    
+
+        const chartData = {
+            labels: ['No', 'Yes'],
+            datasets: [
+                {
+                    label: 'Prediction',
+                    data: [1 - averagePrediction[0], averagePrediction[0]],
+                    backgroundColor: ['#FF6384', '#36A2EB'],
+                    hoverBackgroundColor: ['#FF6384', '#36A2EB'],
+                },
+            ],
+        };
+        
+        setChartData(chartData); // Update the chart data state
+
+        // Calculate permutation importance for the model
+        calculatePermutationImportance(tensorInputs, predictions);
+        } else {
         console.log('Model or tensorInputs not ready for predictions.');
-    }
+        }
 };
+
+
+
+const featureNames = [...categoricalColumns, ...numericColumns];
+
+const calculatePermutationImportance = async (inputs: number[][], predictions: number[]) => {
+    if (!model || inputs.length === 0) {
+        console.log('Model or inputs not ready for permutation importance.');
+        return;
+    }
+    console.log('existing predictions:', predictions);
+    console.log('Types of predictions:', predictions.map(p => typeof p));
+    console.log('inputs:', inputs);
+
+    const baselineScore = predictions.reduce((acc, curr) => acc + curr, 0) / predictions.length;
+   console.log('baseline score ,', baselineScore);
+   
+   
+    const featureImportances = Array(inputs[0].length).fill(0);
+
+    for (let col = 0; col < inputs[0].length; col++) {
+        const shuffledInputs = inputs.map(row => row.slice()); // Copy inputs to avoid modifying original data
+
+        for (let i = 0; i < shuffledInputs.length; i++) {
+            const originalValue = shuffledInputs[i][col];
+            const randomIndex = Math.floor(Math.random() * shuffledInputs.length);
+            shuffledInputs[i][col] = shuffledInputs[randomIndex][col];
+            shuffledInputs[randomIndex][col] = originalValue;
+        }
+
+        const shuffledPredictions: number[] = [];
+        for (let i = 0; i < shuffledInputs.length; i++) {
+            const inputTensor = shuffledInputs[i];
+            const reshapedInput = tf.tensor(inputTensor).reshape([1, 1, 48]); // Assuming 2D input shape [1, 48]
+            const outputTensor = model.predict(reshapedInput) as tf.Tensor; // Make predictions
+            const predictionArray = outputTensor.arraySync(); // Extract array
+            const predictionValue = predictionArray[0]; // Get first output class probabilities
+            
+            if (Array.isArray(predictionValue)) {
+                shuffledPredictions.push(predictionValue[1] || predictionValue[0]);
+            } else {
+                shuffledPredictions.push(predictionValue);
+            }
+        }
+
+        const shuffledScore = shuffledPredictions.reduce((acc, curr) => acc + curr, 0) / shuffledPredictions.length;
+        const importance = baselineScore - shuffledScore;
+
+        featureImportances[col] = importance;
+        //log the feature importance for each column
+        console.log(`Feature: ${featureNames[col]}, Importance: ${importance}`); // Log the feature name and its computed importance
+        
+        
+   
+    }
+
+    // Determine feature names
+    
+    
+
+    // Prepare data for the Bar chart
+    const featureImportanceChartData = {
+        labels: featureNames,
+        datasets: [
+            {
+                label: 'Permutation Importance',
+                data: featureImportances,
+                backgroundColor: '#36A2EB',
+                hoverBackgroundColor: '#36A2EB',
+            },
+        ],
+    };
+
+    setFeatureImportanceChartData(featureImportanceChartData); // Update the feature importance chart data state
+};
+
+
+
+
+
+// Prepare data for the Doughnut chart
 
     useEffect(() => {
         if (model && tensorInputs.length > 0 && !predictionsMade) {
@@ -405,21 +519,62 @@ interface Scaler {
     }, [model, tensorInputs, predictionsMade]);
     
    
-                    
+    const cardStyle: React.CSSProperties = {
+        position: 'relative',
+        width: '300px',
+        padding: '20px',
+        border: '1px solid #ccc',
+        borderRadius: '8px',
+        backgroundColor: '#f9f9f9',
+        margin: '20px 0',
+        textAlign: 'left',
+    };       
 
+    
+    
+    const likelihoodText = averagePrediction? (averagePrediction[0] >= 0.5 ? 'Yes' : 'No') : 'No'; // Determine likelihood text
 
 
 
   
-
     return (
         <div>
             <h1>Prediction Overview</h1>
-            <p>This component is responsible for predicting the likelihood of a tracked entity instance to be a case of a particular disease.</p>
+            <p>This component is responsible for predicting the likelihood of a tracked entity instance to develop MDR-TB.</p>
             {/* Render your predictions or other UI elements here */}
-             {predictions.map((prediction, index) => (
-        <div key={index}>Prediction for input {index}: {prediction}</div>
-      ))}
+            {chartData && (
+                <div style={cardStyle}>
+                    <Doughnut data={chartData} />
+                    <p>Final Prediction Probability: {Math.round(averagePrediction?.[0]*1000)/1000}</p>
+                    <p>Patient Likely to Develop MDRTB: {likelihoodText}</p>
+                </div>
+            )}
+            {predictions.map((prediction, index) => (
+        <div key={index}>Prediction for event {index}: {prediction}</div>
+                ))}
+            {featureImportanceChartData && (
+                    <div style={cardStyle}>
+                        <Bar data={featureImportanceChartData}
+                        options = {{ 
+                            indexAxis: 'y',
+                            elements: {
+                                bar: {
+                                    borderWidth: 2,
+                                    borderColor: '#fff',
+                                }
+                            },
+                            plugins: {legend: {display: false, }, },
+                            responsive: true,
+                            scales: {
+                                x: { beginAtZero: true, },
+                                y: {title: {display: true,},
+                                }
+                            },
+                            }}
+
+                            />
+                    </div>
+                )}
             </div>
     );
 };
