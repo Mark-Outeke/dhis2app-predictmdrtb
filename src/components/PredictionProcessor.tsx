@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useDataQuery } from '@dhis2/app-runtime'; // Use DHIS2 app-runtime for data queries
 import { Doughnut, Bar } from 'react-chartjs-2'; // Import Doughnut chart component
 import * as tf from '@tensorflow/tfjs'; // Import TensorFlow.js for predictions
-//import { TrackedEntityInstance } from './TrackerDataTable';
 import { Chart, ArcElement, registerables } from 'chart.js';
 
 // Register the required elements
@@ -37,23 +36,60 @@ const trackedEntityQuery = {
     },
 };
 
+const dataElementsQuery = {
+    dataElements: {
+        resource: "dataElements",
+        
+        params: {
+            fields: [
+                "id",
+                "name",
+                "displayName",
+            ],
+        paging: "false"
+        },
+    },
+};
+
+// Custom hook to fetch data element names
+const useDataElementNames = () => {
+    const { loading, error, data } = useDataQuery(dataElementsQuery, {});
+
+    const [dataElementNameMapping, setDataElementNameMapping] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        if (!loading && !error && data) {
+            console.log('Data Elements:', data);
+            const mapping: Record<string, string> = {};
+            if (Array.isArray(data.dataElements.dataElements)) {
+                data.dataElements.dataElements.forEach((element: { id: string; name: string }) => {
+                    mapping[element.id] = element.name;
+                });
+                setDataElementNameMapping(mapping);
+                console.log('Data Element Name Mapping:', mapping);
+            } else {
+                console.error('data.dataElements.dataElements is not an array:', data.dataElements.dataElements);
+            }
+        }
+    }, [loading, error, data]);
+
+    return dataElementNameMapping;
+};
 
 const PredictionComponent: React.FC <PredictionComponentProps>= ({ trackedEntityId }) => {
     console.log("Received trackedEntityId:", trackedEntityId);
-    const { loading, error, data } = useDataQuery(trackedEntityQuery,{
-        variables: { trackedEntityId },}
-    );
+    const { loading, error, data } = useDataQuery(trackedEntityQuery, {
+        variables: { trackedEntityId },
+    });
     const [predictions, setPredictions] = useState<number[]>([]);
-    //const [labels, setLabels] = useState<string[]>([]);
     const [trackedEntities, setTrackedEntities] = useState<TrackedEntity[]>([]);
-    const [model, setModel] = useState<tf.LayersModel | null>(null)
+    const [model, setModel] = useState<tf.LayersModel | null>(null);
     const [tensorInputs, setTensorInputs] = useState<number[][]>([]);
     const [predictionsMade, setPredictionsMade] = useState<boolean>(false);
     const [chartData, setChartData] = useState<any>(null);
     const [featureImportanceChartData, setFeatureImportanceChartData] = useState<any>(null);
-    //const [categoricalColumns, setCategoricalColumns] = useState<string[]>([]);
-    //const [numericColumns, setNumericColumns] = useState<string[]>([]);
-    const [averagePrediction, setAveragePrediction] = useState<number | null>(null);
+    const [averagePrediction, setAveragePrediction] = useState<number>();
+    //const [dataElementNameMapping, setDataElementNameMapping] = useState<Record<string, string>>({});
 
     useEffect(() => {
         // Handle loading state
@@ -71,22 +107,19 @@ const PredictionComponent: React.FC <PredictionComponentProps>= ({ trackedEntity
 
         console.log("Tracked entity:", fetchedTrackedEntity);
 
-       
-    
-
         if (fetchedTrackedEntity) {
             const extractedData = extractDataElements(fetchedTrackedEntity);
             console.log("Extracted Data:", extractedData); // Log extracted data
-    
+
             const processedData = processExtractedData(extractedData, categoricalColumns, numericColumns);
             console.log("Processed Data:", processedData); // Log processed data
-    
+
             // Call labelEncode and log the encoded data
             const encodeAndLogData = async () => {
                 try {
                     const labelEncoders = await loadLabelEncoders();
-                   // console.log("Label Encoders:", labelEncoders); // Log label encoders
-    
+                    // console.log("Label Encoders:", labelEncoders); // Log label encoders
+
                     const encodedData = await labelEncode(processedData, categoricalColumns);
                     console.log('Final Encoded Data:', encodedData); // Log the encoded data
 
@@ -97,66 +130,65 @@ const PredictionComponent: React.FC <PredictionComponentProps>= ({ trackedEntity
                     const tensorInputs = extractTensorInputs(scaledData) as number[][];
                     setTensorInputs(tensorInputs);
                     console.log('Tensor Inputs:', tensorInputs);
-                    
-                     // Now you can call makePredictions here and log the predictions
+
+                    // Now you can call makePredictions here and log the predictions
                     if (model && tensorInputs.length > 0) {
                         const predictions = await makePredictions();
-                        //console.log('Prediction:', predictions);
+                        // console.log('Prediction:', predictions);
                     }
-                     
-                     
+
                 } catch (encodeError) {
                     console.error('Error encoding data:', encodeError);
                 }
             };
-    
+
             encodeAndLogData(); // Call the async function
         };
-        
-        
 
-    }, [loading, error, data , model, predictionsMade]);
+    }, [loading, error, data, model, predictionsMade]);
 
-    const categoricalColumns =     [ 'LRzaAyb2vGk',  'hDaev1EuehO', 'Aw9p1CCIkqL',
+    const categoricalColumns = [
+        'LRzaAyb2vGk',  'hDaev1EuehO', 'Aw9p1CCIkqL',
         'TFS9P7tu6U6', 'dtRfCJvzZRF', 'CxdzmL6vtnx', 'U4jSUZPF0HH', 'pDoTShM62yi',
         'PZvOW11mGOq', 'axDtvPeYL2Y', 'FklL99yLd3h', 'FhUzhlhPXqV', 'sM7PAEYRqEP',
         'FZMwpP1ncnZ', 'QzfjeqlwN2c', 't1wRW4bpRrj', 'SoFmSjG4m2N', 'WTz4HSqoE5E',
         'E0oIYbS2lcV', 'f0S6DIqAOE5', 't6qq4TXSE7n', 'pD0tc8UxyGg', 'vKn3Mq4nqOF',
         'ZjimuF1UNdY', 'qZKe08ZA2Jl', 'b801bG8cIxt', 'Nf4Tz0J2vA6', 'pZgD6CYOa96',
         'pg6UUMn87eM', 'EWsKHldwJxa', 'TevjEqHRBdC', 'x7uZB9y0Qey', 'f02UimVxEc2',
-        ]; // Replace with actual IDs
-  
-    const numericColumns = ['Ghsh3wqVTif', 'xcTT5oXggBZ', 'WBsNDNQUgeX', 
-                          'HzhDngURGLk', 'vZMCHh6nEBZ', 'A0cMF4wzukz', 
-                          'IYvO501ShKB', 'KSzr7m65j5q', 'QtDbhbhXw8w',
-                          'jnw3HP0Kehx', 'R8wHHdIp2zv', 'gCQbn6KVtTn', 
-                          'IrXoOEno4my', 'BQVLvsEJmSq', 'YFOzTDRhjkF',];
+    ]; // Replace with actual IDs
 
+    const numericColumns = ['Ghsh3wqVTif', 'xcTT5oXggBZ', 'WBsNDNQUgeX',
+        'HzhDngURGLk', 'vZMCHh6nEBZ', 'A0cMF4wzukz',
+        'IYvO501ShKB', 'KSzr7m65j5q', 'QtDbhbhXw8w',
+        'jnw3HP0Kehx', 'R8wHHdIp2zv', 'gCQbn6KVtTn',
+        'IrXoOEno4my', 'BQVLvsEJmSq', 'YFOzTDRhjkF', ];
+// Fetch data element names using the custom hook
+const dataElementNameMapping = useDataElementNames();
 
     const extractDataElements = (entity: TrackedEntity) => {
-            let extractedData: Record<string, Record<string, string | number | null>> = {};
+        let extractedData: Record<string, Record<string, string | number | null>> = {};
 
-            // Extracting data from enrollments
-            if (entity.enrollments) {
-                entity.enrollments.forEach(enrollment => {
-                    enrollment.events.forEach(event => {
-                        let eventData: Record<string, string | number | null> = {};
-                        event.dataValues.forEach(dataValue => {
-                            if (categoricalColumns.includes(dataValue.dataElement)) {
-                                eventData[dataValue.dataElement] = dataValue.value !== undefined ? dataValue.value : null;
-                            } else if (numericColumns.includes(dataValue.dataElement)) {
-                                // Convert to number
-                                const numericValue = parseFloat(dataValue.value);
-                                eventData[dataValue.dataElement] = !isNaN(numericValue) ? numericValue : 0;
-                            }
-                        });
-                        extractedData[event.event] = eventData;
+        // Extracting data from enrollments
+        if (entity.enrollments) {
+            entity.enrollments.forEach(enrollment => {
+                enrollment.events.forEach(event => {
+                    let eventData: Record<string, string | number | null> = {};
+                    event.dataValues.forEach(dataValue => {
+                        if (categoricalColumns.includes(dataValue.dataElement)) {
+                            eventData[dataValue.dataElement] = dataValue.value !== undefined ? dataValue.value : null;
+                        } else if (numericColumns.includes(dataValue.dataElement)) {
+                            // Convert to number
+                            const numericValue = parseFloat(dataValue.value);
+                            eventData[dataValue.dataElement] = !isNaN(numericValue) ? numericValue : 0;
+                        }
                     });
+                    extractedData[event.event] = eventData;
                 });
-            }
-            console.log("Extracted data:", extractedData);
-            return extractedData;
-        };
+            });
+        }
+        console.log("Extracted data:", extractedData);
+        return extractedData;
+    };
 
 // Define types for the processed data
 type EventProcessedData = Record<string, string | number | null>;
@@ -175,8 +207,6 @@ const processExtractedData = (
 
     // Iterate over extractedData to combine values for each data element per event
     Object.entries(extractedData).forEach(([eventName, eventData]) => {
-        
-
         // Create an object for each event
         const eventProcessedData: EventProcessedData = {};
 
@@ -225,16 +255,16 @@ interface LabelEncoder {
 
 const loadLabelEncoders = async (): Promise<LabelEncoder> => {
     try {
-    const response = await fetch('/label_encoders.json');
+        const response = await fetch('/label_encoders.json');
         if (!response.ok) {
             throw new Error('Failed to load label encoders');
         }
         const labelEncoders: LabelEncoder = await response.json();
         //console.log('Loaded label encoders:', labelEncoders);
         return labelEncoders;
-    }catch (encodeError) {
-    console.error('Error loading label encoders:', encodeError);
-    throw encodeError;
+    } catch (encodeError) {
+        console.error('Error loading label encoders:', encodeError);
+        throw encodeError;
     }
 };
 
@@ -267,124 +297,119 @@ const labelEncode = async (processedDataArray: ProcessedData[], categoricalColum
 // Define types for the scaler and the data structure
 interface Scaler {
     [key: string]: {
-      mean: number;
-      scale: number;
+        mean: number;
+        scale: number;
     };
-  }
-  
-  interface RowData {
+}
+
+interface RowData {
     [key: string]: number | string | null; // Can include other types depending on your data structure
-  }
-  
-  interface DataRow {
+}
+
+interface DataRow {
     data: RowData;
-  }
-  
-  // Normalize numeric data
-  const loadNumericScaler = async (): Promise<Scaler> => {
+}
+
+// Normalize numeric data
+const loadNumericScaler = async (): Promise<Scaler> => {
     const response = await fetch('/numeric_scaler.json');
     if (!response.ok) {
-      throw new Error('Failed to load numeric scaler');
+        throw new Error('Failed to load numeric scaler');
     }
     return await response.json(); // Load and return the JSON content
-  };
-  
-  // Scale numeric data
-  const scaleNumericData = async (data: DataRow[], numericColumns: string[]): Promise<DataRow[]> => {
+};
+
+// Scale numeric data
+const scaleNumericData = async (data: DataRow[], numericColumns: string[]): Promise<DataRow[]> => {
     const scaler = await loadNumericScaler(); // Load the scaler
-    
+
     // Ensure the scaler contains mean and scale for each numeric column
     if (!numericColumns.every(col => scaler[col])) {
-      throw new Error('Scaler is missing data for one or more numeric columns');
+        throw new Error('Scaler is missing data for one or more numeric columns');
     }
-  
+
     // Scale numeric data
     data.forEach(row => {
-      numericColumns.forEach(col => {
-        const { mean, scale } = scaler[col]; // Get mean and scale for the current column
-        let value = parseFloat(row.data[col] as string); // Cast to string for parsing
-  
+        numericColumns.forEach(col => {
+            const { mean, scale } = scaler[col]; // Get mean and scale for the current column
+            let value = parseFloat(row.data[col] as string); // Cast to string for parsing
 
-       // console.log(`Scaling value for column '${col}':`, { originalValue: value, mean, scale });
-        // Apply scaling formula and ensure no negative values
-        if (!isNaN(value)) {
-          row.data[col] = Math.max(0, (value - mean) / scale); // Scale the value while ensuring it's non-negative
-        } else {
-          row.data[col] = 0; // Handle if value is NaN
-        }
-      });
+            // console.log(`Scaling value for column '${col}':`, { originalValue: value, mean, scale });
+            // Apply scaling formula and ensure no negative values
+            if (!isNaN(value)) {
+                row.data[col] = Math.max(0, (value - mean) / scale); // Scale the value while ensuring it's non-negative
+            } else {
+                row.data[col] = 0; // Handle if value is NaN
+            }
+        });
     });
-  
-    return data; // Return scaled data
-  };
 
-  const extractTensorInputs = (data) => {
+    return data; // Return scaled data
+};
+
+const extractTensorInputs = (data) => {
     if (!data || !Array.isArray(data)) {
-      console.error('Invalid data for extracting tensor inputs:', data);
-      return []; // Return an empty array or handle it as appropriate
+        console.error('Invalid data for extracting tensor inputs:', data);
+        return []; // Return an empty array or handle it as appropriate
     }
-  
+
     return data.map(row => {
         const values = Object.values(row.data);
         // Log the type of each value
         values.forEach((value, index) => {
-          if (typeof value !== 'number') {
-            console.error(`Value at index ${index} is not a number:`, value);
-          }
+            if (typeof value !== 'number') {
+                console.error(`Value at index ${index} is not a number:`, value);
+            }
         });
         return values; // Extract values from each row
-      });
-  };
+    });
+};
 
- // const tensorInputs = extractTensorInputs(scaledData);
-      //console.log('tensorInputs:', tensorInputs);
-  // Define the prediction model
+// Define the prediction model
 
-  useEffect(() => {
-
-     // log the loded modle
-     if (model) {
+useEffect(() => {
+    // log the loaded model
+    if (model) {
         console.log('Loaded model:', model);
     } else {
         console.log('Model is not loaded yet.');
     }
     const loadModel = async () => {
-      try {
-        const loadedModel = await tf.loadLayersModel('/model.json');
-        loadedModel.compile({
-          optimizer: 'adam', // Specify your optimizer
-          loss: 'binaryCrossentropy', // Use appropriate loss based on your model
-          metrics: ['accuracy'], // Metrics for tracking
-        });
-        setModel(loadedModel);
-        console.log('Model loaded successfully.');
-      } catch (error) {
-        console.error('Error loading the TensorFlow model:', error);
-      }
+        try {
+            const loadedModel = await tf.loadLayersModel('/model.json');
+            loadedModel.compile({
+                optimizer: 'adam', // Specify your optimizer
+                loss: 'binaryCrossentropy', // Use appropriate loss based on your model
+                metrics: ['accuracy'], // Metrics for tracking
+            });
+            setModel(loadedModel);
+            console.log('Model loaded successfully.');
+        } catch (error) {
+            console.error('Error loading the TensorFlow model:', error);
+        }
     };
 
     loadModel(); // Call the async function to load the model
-  }, []);
+}, []);
 
 
-
-  const makePredictions = async () => { 
+const makePredictions = async () => {
     if (model && tensorInputs.length > 0) {
         console.log('Running Predictions...');
-        const predictions: number[] =[];
-    
+        const predictions: number[] = [];
+
         for (let i = 0; i < tensorInputs.length; i++) {
             const inputTensor = tensorInputs[i]; // Create a tensor for the current row
             // Adjust the shape based on the model's input requirements
             const reshapedInput = tf.tensor(inputTensor).reshape([1, 1, 48]); // Assuming 2D input shape [1, 48]
-            
+
             const outputTensor = model.predict(reshapedInput) as tf.Tensor; // Make predictions
-            console.log('outputTensor ', outputTensor); 
-            console.log('outputTensor.shape ', outputTensor.shape); 
+            //console.log('outputTensor ', outputTensor);
+            //console.log('outputTensor.shape ', outputTensor.shape);
             const predictionArray = outputTensor.arraySync(); // Extract array
-            console.log('predictionArray', predictionArray); 
+            //console.log('predictionArray', predictionArray);
             const predictionValue = predictionArray[0][0][0]; // Get first output class probabilities
-            console.log('predictionValue', predictionValue); 
+            //console.log('predictionValue', predictionValue);
             // Handle different output shapes based on your model
             if (Array.isArray(predictionValue)) {
                 // If predictionValue is an array, assume binary classification
@@ -408,46 +433,42 @@ interface Scaler {
         console.log('ALL Predictions:', predictions);
         console.log('Average Prediction:', averagePrediction);
         console.log('Result:', result);
-    
 
         const chartData = {
             labels: ['No', 'Yes'],
             datasets: [
                 {
                     label: 'Prediction',
-                    data: [1 - averagePrediction[0], averagePrediction[0]],
+                    data: [1 - averagePrediction, averagePrediction],
                     backgroundColor: ['#FF6384', '#36A2EB'],
                     hoverBackgroundColor: ['#FF6384', '#36A2EB'],
                 },
             ],
         };
-        
-        setChartData(chartData); // Update the chart data state
 
-        // Calculate permutation importance for the model
-        calculatePermutationImportance(tensorInputs, predictions);
-        } else {
+        setChartData(chartData); // Update the chart data state
+        console.log('chartData:', chartData);
+
+        // Calculate permutation importance
+        calculatePermutationImportance(tensorInputs, predictions, dataElementNameMapping);
+    } else {
         console.log('Model or tensorInputs not ready for predictions.');
-        }
+    }
 };
 
-
-
+// Define the feature names
 const featureNames = [...categoricalColumns, ...numericColumns];
 
-const calculatePermutationImportance = async (inputs: number[][], predictions: number[]) => {
+// Calculate permutation importance
+const calculatePermutationImportance = async (inputs: number[][], predictions: number[], dataElementNameMapping: Record<string, string>) => {
     if (!model || inputs.length === 0) {
         console.log('Model or inputs not ready for permutation importance.');
         return;
     }
-    console.log('existing predictions:', predictions);
-    console.log('Types of predictions:', predictions.map(p => typeof p));
-    console.log('inputs:', inputs);
 
+    // Calculate baseline score
     const baselineScore = predictions.reduce((acc, curr) => acc + curr, 0) / predictions.length;
-   console.log('baseline score ,', baselineScore);
-   
-   
+
     const featureImportances = Array(inputs[0].length).fill(0);
 
     for (let col = 0; col < inputs[0].length; col++) {
@@ -466,8 +487,8 @@ const calculatePermutationImportance = async (inputs: number[][], predictions: n
             const reshapedInput = tf.tensor(inputTensor).reshape([1, 1, 48]); // Assuming 2D input shape [1, 48]
             const outputTensor = model.predict(reshapedInput) as tf.Tensor; // Make predictions
             const predictionArray = outputTensor.arraySync(); // Extract array
-            const predictionValue = predictionArray[0]; // Get first output class probabilities
-            
+            const predictionValue = predictionArray[0][0][0]; // Get first output class probabilities
+
             if (Array.isArray(predictionValue)) {
                 shuffledPredictions.push(predictionValue[1] || predictionValue[0]);
             } else {
@@ -479,104 +500,125 @@ const calculatePermutationImportance = async (inputs: number[][], predictions: n
         const importance = baselineScore - shuffledScore;
 
         featureImportances[col] = importance;
-        //log the feature importance for each column
-        console.log(`Feature: ${featureNames[col]}, Importance: ${importance}`); // Log the feature name and its computed importance
-        
-        
-   
+        //console.log(`Feature: ${featureNames[col]}, Importance: ${importance}`); // Log the feature name and its computed importance
     }
 
-    // Determine feature names
-    
-    
+    // Filter for positive importances
+    const positiveFeatureImportances = featureImportances
+        .map((importance, index) => ({ feature: dataElementNameMapping[featureNames[index]] || featureNames[index], importance }))
+        .filter(item => item.importance > 0); // Keep only positive importances
 
-    // Prepare data for the Bar chart
+    // Prepare data for the Bar chart with positive importances
     const featureImportanceChartData = {
-        labels: featureNames,
+        labels: positiveFeatureImportances.map(item => item.feature),
         datasets: [
             {
                 label: 'Permutation Importance',
-                data: featureImportances,
+                data: positiveFeatureImportances.map(item => item.importance),
                 backgroundColor: '#36A2EB',
                 hoverBackgroundColor: '#36A2EB',
             },
         ],
     };
 
-    setFeatureImportanceChartData(featureImportanceChartData); // Update the feature importance chart data state
+    setFeatureImportanceChartData(featureImportanceChartData); // Update state with filtered data
 };
 
+useEffect(() => {
+    if (model && tensorInputs.length > 0 && !predictionsMade) {
+        makePredictions();
+    }
+}, [model, tensorInputs, predictionsMade]);
 
+const cardStyle: React.CSSProperties = {
+    position: 'relative',
+    width: '300px',
+    padding: '20px',
+    border: '1px solid #ccc',
+    borderRadius: '8px',
+    backgroundColor: '#f9f9f9',
+    margin: '20px 0',
+    textAlign: 'left',
+};
 
+const likelihoodText = averagePrediction !== undefined ? (averagePrediction >= 0.5 ? 'Yes' : 'No') : 'No'; // Determine likelihood text
 
+return (
+    <div>
+        <h1>Prediction Overview</h1>
+        <p>This component is responsible for predicting the likelihood of a tracked entity instance to develop MDR-TB.</p>
 
-// Prepare data for the Doughnut chart
+        {/* Container for both charts */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
 
-    useEffect(() => {
-        if (model && tensorInputs.length > 0 && !predictionsMade) {
-            makePredictions();
-        }
-    }, [model, tensorInputs, predictionsMade]);
-    
-   
-    const cardStyle: React.CSSProperties = {
-        position: 'relative',
-        width: '300px',
-        padding: '20px',
-        border: '1px solid #ccc',
-        borderRadius: '8px',
-        backgroundColor: '#f9f9f9',
-        margin: '20px 0',
-        textAlign: 'left',
-    };       
-
-    
-    
-    const likelihoodText = averagePrediction? (averagePrediction[0] >= 0.5 ? 'Yes' : 'No') : 'No'; // Determine likelihood text
-
-
-
-  
-    return (
-        <div>
-            <h1>Prediction Overview</h1>
-            <p>This component is responsible for predicting the likelihood of a tracked entity instance to develop MDR-TB.</p>
-            {/* Render your predictions or other UI elements here */}
+            {/* Doughnut Chart */}
             {chartData && (
-                <div style={cardStyle}>
+                <div style={{ ...cardStyle, width: '400px' }}>
                     <Doughnut data={chartData} />
-                    <p>Final Prediction Probability: {Math.round(averagePrediction?.[0]*1000)/1000}</p>
+                    <p>Final Prediction Probability: {Math.round((averagePrediction || 0) * 1000) / 1000}</p>
                     <p>Patient Likely to Develop MDRTB: {likelihoodText}</p>
                 </div>
             )}
-            {predictions.map((prediction, index) => (
-        <div key={index}>Prediction for event {index}: {prediction}</div>
-                ))}
+
+            {/* Feature Importance Bar Chart */}
             {featureImportanceChartData && (
-                    <div style={cardStyle}>
-                        <Bar data={featureImportanceChartData}
-                        options = {{ 
+                <div style={{ width: '800px', height: '500px' }}>
+                    <Bar
+                        data={featureImportanceChartData}
+                        options={{
                             indexAxis: 'y',
                             elements: {
                                 bar: {
                                     borderWidth: 2,
                                     borderColor: '#fff',
-                                }
+                                },
                             },
-                            plugins: {legend: {display: false, }, },
+                            plugins: {
+                                legend: { display: false },
+                                title: {
+                                    display: true,
+                                    text: 'Contributing Factor',
+                                    font: { size: 20 },
+                                },
+                            },
                             responsive: true,
+                            maintainAspectRatio: false,
                             scales: {
-                                x: { beginAtZero: true, },
-                                y: {title: {display: true,},
-                                }
+                                x: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Importance Score',
+                                        font: { size: 16 },
+                                    },
+                                    ticks: {
+                                        font: { size: 14 },
+                                    },
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: 'Features',
+                                        font: { size: 16 },
+                                    },
+                                    ticks: {
+                                        font: { size: 14 },
+                                    },
+                                },
                             },
-                            }}
+                        }}
+                    />
+                </div>
+            )}
+        </div>
 
-                            />
-                    </div>
-                )}
-            </div>
-    );
+        {/* Predictions List */}
+        {predictions.map((prediction, index) => (
+            <div key={index}>Prediction for event {index}: {prediction}</div>
+        ))}
+    </div>
+);
+
 };
 
 export default PredictionComponent;
