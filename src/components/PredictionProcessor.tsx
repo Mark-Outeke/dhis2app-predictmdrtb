@@ -546,7 +546,7 @@ const likelihoodText = averagePrediction !== undefined ? (averagePrediction >= 0
 return (
     <div>
         <h1>Prediction Overview</h1>
-        <p>This component is responsible for predicting the likelihood of a tracked entity instance to develop MDR-TB.</p>
+        <p>This is presented as a summary for predicting the likelihood of a DSTB Patient to develop MDR-TB.</p>
 
         {/* Container for both charts */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
@@ -612,10 +612,7 @@ return (
             )}
         </div>
 
-        {/* Predictions List */}
-        {predictions.map((prediction, index) => (
-            <div key={index}>Prediction for event {index}: {prediction}</div>
-        ))}
+        
     </div>
 );
 
