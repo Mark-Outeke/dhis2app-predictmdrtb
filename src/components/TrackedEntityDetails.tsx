@@ -52,7 +52,7 @@ const QUERY = {
         params: {
             fields: [
                 "trackedEntityInstance",
-                "enrollments[orgUnit[id,name,level,geometry]]",
+                "enrollments",
                 "created",
                 "attributes",
                 "orgUnitName",
@@ -63,15 +63,7 @@ const QUERY = {
     },
 };
 
-const orgunitQuery = {
-    organizationUnit: {
-        resource: "organisationUnits", // Use a placeholder for the ID
-        id: ({ orgUnitId }: { orgUnitId: string }) => orgUnitId, // Accepts the ID as a variable
-        params: {
-            fields: ["id", "name", "level", "geometry"],
-        },
-    },
-};
+
 
 
 const TrackedEntityDetails = () => {
@@ -84,7 +76,7 @@ const TrackedEntityDetails = () => {
     });
 
     const [heatmapData, setHeatmapData] = useState<[number, number, number][]>([]);
-    console.log("heatmapData: " ,heatmapData);
+    //console.log("heatmapData: " ,heatmapData);
     const mapRef = useRef<L.Map | null>(null);
 
     useEffect(() => {
@@ -113,16 +105,42 @@ const TrackedEntityDetails = () => {
     if (!entity) {
         return <p>No entity details available.</p>;
     }
-
+    //extract orgunit from entity data found in enrollments
+    const orgUnitId = entity.enrollments?.[0]?.orgUnit || 'N/A';
+    console.log("orgUnitId: " ,orgUnitId);
     const orgUnitName = entity.enrollments?.[0]?.orgUnitName || 'N/A';
+    
+    // Extract org unit coordinates data
+    const { data: orgUnitData } = useDataQuery({
+        organizationUnits: {
+            resource: "organisationUnits",
+            id: orgUnitId,
+            params: {
+                fields: ["geometry"],
+            },
+        },
+    }, { variables: { orgUnitId } });
+    
+    // Log the geometry if available
+    useEffect(() => {
+        if (orgUnitData) {
+            console.log("Org Unit Geometry: ", orgUnitData.organizationUnit.geometry);
+        }
+    }, [orgUnitData]);
+    
+    // Usage of org unit coordinates
+    const orgUnitCoordinates = orgUnitData?.organizationUnit?.geometry || { type: 'Point', coordinates: [0, 0] };
+    console.log("Org Unit Coordinates: ", orgUnitCoordinates);
+    // Extract coordinates from attributes
+    const attributes = entity?.attributes || [];
+    const gisCoordinatesAttr = attributes.find(attr => attr.displayName === "GIS Coordinates");
+    const gisCoordinates = gisCoordinatesAttr ? JSON.parse(gisCoordinatesAttr.value) : [0, 0];
 
-    const orgUintId = entity.enrollments?.[0]?.orgUnit?.id || 'N/A';
-
-    const orgUnitCoordinates = entity.attributes?.[0]?.coordinates || { latitude: 0, longitude: 0 };
-    console.log("orgUnitCoordinates: " ,orgUnitCoordinates);
-
-    const trackedEntityCoordinates = entity.coordinates || { latitude: 0, longitude: 0 };
-    console.log("trackedEntityCoordinates: " ,trackedEntityCoordinates);
+    const trackedEntityCoordinates = {
+        latitude: gisCoordinates[0],
+        longitude: gisCoordinates[1],
+    };
+    console.log("trackedEntityCoordinates: ", trackedEntityCoordinates);
 
     // Extract events and their data elements
     const events = entity.enrollments?.[0]?.events || [];
