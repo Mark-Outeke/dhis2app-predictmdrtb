@@ -59,14 +59,14 @@ const useDataElementNames = () => {
 
     useEffect(() => {
         if (!loading && !error && data) {
-            console.log('Data Elements:', data);
+            //console.log('Data Elements:', data);
             const mapping: Record<string, string> = {};
             if (Array.isArray(data.dataElements.dataElements)) {
                 data.dataElements.dataElements.forEach((element: { id: string; name: string }) => {
                     mapping[element.id] = element.name;
                 });
                 setDataElementNameMapping(mapping);
-                console.log('Data Element Name Mapping:', mapping);
+                //console.log('Data Element Name Mapping:', mapping);
             } else {
                 console.error('data.dataElements.dataElements is not an array:', data.dataElements.dataElements);
             }

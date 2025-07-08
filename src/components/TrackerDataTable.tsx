@@ -1,19 +1,10 @@
 import React, { useState } from 'react';
 import { useDataQuery } from '@dhis2/app-runtime';
 import Sidebar from './SideBar';
-import {
-    DataTable,
-    DataTableHead,
-    DataTableBody,
-    DataTableRow,
-    DataTableCell,
-    CircularLoader,
-    DataTableColumnHeader,
-    Pagination,
-    DataTableRowProps
-} from '@dhis2/ui';
+import {DataTable, DataTableHead, DataTableBody, DataTableRow,DataTableCell, CircularLoader, DataTableColumnHeader, Pagination, DataTableRowProps} from '@dhis2/ui';
 import { useHistory } from 'react-router-dom';
 import './TrackerDataTable.css';
+ 
 
 // Query definition
 const query = {
@@ -23,6 +14,7 @@ const query = {
             ou: 'akV6429SUqu',
             ouMode: 'DESCENDANTS',
             program: 'wfd9K4dQVDR',
+          
             fields: [
                 'trackedEntityInstance',
                 'orgUnitName',
@@ -44,6 +36,7 @@ type Attribute = {
 
 type Enrollment = {
     orgUnitName: string;
+    orgUnit: string;
 };
 
 export type TrackedEntityInstance = {
@@ -52,6 +45,7 @@ export type TrackedEntityInstance = {
     created: string;
     attributes: Attribute[];
     enrollments: Enrollment[];
+    orgUnit: string;
 };
 
 type QueryResult = {
@@ -96,11 +90,23 @@ export default function TrackerDataTable({ onEntitySelect }: TrackerDataTablePro
 
     // Filter rows based on searchTerm
     const filteredRows = data?.trackedEntities?.trackedEntityInstances.filter((instance) => {
-      // Searching across all attributes
-      return instance.attributes.some(attr =>
-          attr.value.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-  }) || [];
+    // Check if attributes is defined and not empty
+    if (!instance.attributes) return false;
+
+    // Combine all searchable fields into a single string
+    const searchableFields = [
+        instance.orgUnitName,
+        instance.orgUnit,
+        instance.created,
+        ...instance.attributes.map(attr => attr.value),
+        ...instance.enrollments.map(enrollment => enrollment.orgUnitName || '')
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    // Search within the combined string
+    return searchableFields.includes(searchTerm.toLowerCase());
+}) || [];
+
+
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       setSearchTerm(event.target.value);

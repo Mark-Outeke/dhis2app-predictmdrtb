@@ -38,8 +38,8 @@ const HotspotProcessor: React.FC<HotspotProcessorProps> = ({ setHeatmapData }) =
 
   const extractCoordinates = (data) => {
     const instances = data.trackedEntityInstances || [];
-    console.log(`instances: `, instances);
-    console.log('typeof instances:', typeof instances);
+    //console.log(`instances: `, instances);
+    //console.log('typeof instances:', typeof instances);
     return instances.map((entity) => {
         const gisAttr = entity.attributes.find(attr => attr.displayName === 'GIS Coordinates');
         if (gisAttr) {
@@ -87,8 +87,8 @@ const HotspotProcessor: React.FC<HotspotProcessorProps> = ({ setHeatmapData }) =
       hasFetched.current = true;
       try {
         const coordinates = extractCoordinates(data.trackedEntities);
-        console.log(`Fetched ${coordinates.length} coordinates.`);
-        console.log(coordinates);
+        //console.log(`Fetched ${coordinates.length} coordinates.`);
+        //console.log(coordinates);
         createHeatmap(coordinates);
       } catch (error) {
         console.error('Error occurred during fetching or processing:', error);
