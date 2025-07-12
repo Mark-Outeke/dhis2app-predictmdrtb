@@ -27,7 +27,7 @@ export const useTrackedEntity = () => {
     const { loading, error, data } = useDataQuery({
         trackedEntities: {
             resource: "trackedEntityInstances",
-            id: ({ trackerEntityId }: { trackerEntityId: string }) => trackerEntityId,
+            id: ({ trackerEntityId }: any) => trackerEntityId,
             params: {
                 fields: [
                     "trackedEntityInstance",
@@ -46,7 +46,7 @@ export const useTrackedEntity = () => {
 
     useEffect(() => {
         if (!entity) {
-            return <p>No entity details available.</p>;
+            console.log("No entity details available.");
         }
     }, [entity]);
 

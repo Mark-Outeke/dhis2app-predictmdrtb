@@ -1,10 +1,13 @@
+// App.tsx
 import { useDataQuery } from '@dhis2/app-runtime';
 import i18n from '@dhis2/d2-i18n';
 import React, { useState } from 'react';
-import TrackerDataTable,  { TrackedEntityInstance } from './components/TrackerDataTable';
+import TrackerDataTable, { TrackedEntityInstance } from './components/TrackerDataTable';
 import TrackedEntityDetails from './components/TrackedEntityDetails';
 import PredictionComponent from './components/PredictionProcessor'; // Import the PredictionComponent
+import MapComponent from './components/MapComponent'; // Import the MapComponent
 import { HashRouter as Router, Route, Switch } from 'react-router-dom';
+import Sidebar from './components/SideBar';
 
 // Define your types here
 interface Attribute {
@@ -15,8 +18,6 @@ interface Attribute {
 interface Enrollment {
     orgUnitName: string;
 }
-
-
 
 const query = {
     me: {
@@ -48,7 +49,7 @@ const MyApp: React.FC = () => {
                     <TrackerDataTable onEntitySelect={handleEntitySelect} /> {/* Pass the function as a prop */}
                 </Route>
                 
-                {/* Dynamic route with parameter */}
+                {/* Dynamic route with parameter for TrackedEntityDetails */}
                 <Route path="/TrackedEntityDetails/:trackerEntityId" component={TrackedEntityDetails} />
 
                 {/* Optionally, if you want to display the prediction component */}
@@ -56,6 +57,11 @@ const MyApp: React.FC = () => {
                     <Route path="/Predictions">
                         <PredictionComponent trackedEntityId={selectedEntity.trackedEntityInstance} />
                     </Route>
+                )}
+
+                {/* Dynamic route with parameter for MapComponent */}
+                {selectedEntity && (
+                    <Route path="/Map/:trackerEntityId" component={MapComponent} />
                 )}
             </Switch>
         </Router>
