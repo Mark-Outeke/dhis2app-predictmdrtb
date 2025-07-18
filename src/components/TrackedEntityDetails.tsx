@@ -275,32 +275,44 @@ const TrackedEntityDetails = () => {
   // (I'm keeping the existing useEffect code as it is for brevity)
 
   // GEOJSON LOADING
-  useEffect(() => {
-    const fetchDistrictsGeoJSON = async () => {
-      try {
-        const response = await fetch('/Districts_UG.geojson');
-        const districtGeoJsonData = await response.json();
-        setDistricts(districtGeoJsonData);
-        console.log('Districts loaded:', districtGeoJsonData);
-      } catch (error) {
-        console.error('Error fetching district GeoJSON:', error);
+ useEffect(() => {
+  const fetchDistrictsGeoJSON = async () => {
+    try {
+      const districtsPath = `${process.env.PUBLIC_URL || ''}/Districts_UG.geojson`;
+      console.log('Loading districts GeoJSON from:', districtsPath);
+      
+      const response = await fetch(districtsPath);
+      if (!response.ok) {
+        throw new Error(`Failed to load districts GeoJSON: ${response.status} ${response.statusText}`);
       }
-    };
+      const districtGeoJsonData = await response.json();
+      setDistricts(districtGeoJsonData);
+      console.log('Districts loaded:', districtGeoJsonData);
+    } catch (error) {
+      console.error('Error fetching district GeoJSON:', error);
+    }
+  };
 
-    const fetchParishesGeoJSON = async () => {
-      try {
-        const response = await fetch('/Ug_Parishes_2016.geojson');
-        const parishesGeoJsonData = await response.json();
-        setParishes(parishesGeoJsonData);
-        console.log('Parishes loaded:', parishesGeoJsonData);
-      } catch (error) {
-        console.error('Error fetching parish GeoJSON:', error);
+  const fetchParishesGeoJSON = async () => {
+    try {
+      const parishesPath = `${process.env.PUBLIC_URL || ''}/Ug_Parishes_2016.geojson`;
+      console.log('Loading parishes GeoJSON from:', parishesPath);
+      
+      const response = await fetch(parishesPath);
+      if (!response.ok) {
+        throw new Error(`Failed to load parishes GeoJSON: ${response.status} ${response.statusText}`);
       }
-    };
+      const parishesGeoJsonData = await response.json();
+      setParishes(parishesGeoJsonData);
+      console.log('Parishes loaded:', parishesGeoJsonData);
+    } catch (error) {
+      console.error('Error fetching parish GeoJSON:', error);
+    }
+  };
 
-    fetchDistrictsGeoJSON();
-    fetchParishesGeoJSON();
-  }, []);
+  fetchDistrictsGeoJSON();
+  fetchParishesGeoJSON();
+}, []);
 
   // ENTITY DATA LOADING
   useEffect(() => {
@@ -530,15 +542,16 @@ const TrackedEntityDetails = () => {
       trackedEntityCoordinates.latitude !== 0 &&
       trackedEntityCoordinates.longitude !== 0
     ) {
-      const orgPoint = turf.point([
-        orgUnitCoordinates.latitude,
-        orgUnitCoordinates.longitude
-      ]);
-      
-      const patientPoint = turf.point([
-        trackedEntityCoordinates.latitude,
-        trackedEntityCoordinates.longitude
-      ]);
+     const orgPoint = turf.point([
+      orgUnitCoordinates.longitude,
+      orgUnitCoordinates.latitude
+    ]);
+
+    const patientPoint = turf.point([
+      trackedEntityCoordinates.longitude,
+      trackedEntityCoordinates.latitude
+    ]);
+
       
       const turfDistance = turf.distance(orgPoint, patientPoint, { units: 'kilometers' });
       setDistance(turfDistance);

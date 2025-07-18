@@ -1,4 +1,3 @@
-// MapComponent.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDataQuery } from '@dhis2/app-runtime';
@@ -16,6 +15,7 @@ L.Icon.Default.mergeOptions({
     shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
 
+// Interface definitions
 interface RouteParams {
     trackerEntityId: string;
 }
@@ -28,20 +28,60 @@ interface Coordinates {
 interface DataElementMetadata {
     id: string;
     displayName: string;
+    name?: string;
+}
+
+interface DataElement {
+    id: string;
+    name: string;
+    displayName: string;
+}
+
+interface TrackedEntity {
+    trackedEntityInstance: string;
+    enrollments: Array<{
+        orgUnit: string;
+        orgUnitName?: string;
+        program: string;
+        events: Array<{
+            dataValues: Array<{
+                dataElement: string;
+                value: string;
+            }>;
+        }>;
+    }>;
+    attributes: Array<{
+        attribute: string;
+        value: string;
+        displayName?: string;
+    }>;
+    coordinates?: string;
+    orgUnitName?: string;
+}
+
+interface APIResponse {
+    trackedEntities?: TrackedEntity;
+    dataElements?: {
+        dataElements: DataElement[];
+    };
 }
 
 const MapComponent = () => {
     const { trackerEntityId } = useParams<RouteParams>();
     
-    const [entity, setEntity] = useState<any | null>(null);
+    // State management
+    const [entity, setEntity] = useState<TrackedEntity | null>(null);
     const [dataElementsMetadata, setDataElementsMetadata] = useState<DataElementMetadata[]>([]);
-    
     const [orgUnitCoordinates, setOrgUnitCoordinates] = useState<Coordinates>({ latitude: 0, longitude: 0 });
     const [trackedEntityCoordinates, setTrackedEntityCoordinates] = useState<Coordinates>({ latitude: 0, longitude: 0 });
     const [orgUnitName, setOrgUnitName] = useState<string>('N/A');
     const [heatmapData, setHeatmapData] = useState<[number, number, number][]>([]);
+    const [coordinatesLoaded, setCoordinatesLoaded] = useState<boolean>(false);
+    const [dataError, setDataError] = useState<string | null>(null);
+    
     const mapRef = useRef<L.Map | null>(null);
 
+    // DHIS2 API Query
     const QUERY = {
         trackedEntities: {
             resource: "trackedEntityInstances",
@@ -49,11 +89,10 @@ const MapComponent = () => {
             params: {
                 fields: [
                     "trackedEntityInstance",
-                    "enrollments",
+                    "enrollments[orgUnit,orgUnitName,program,events[dataValues[dataElement,value]]]",
                     "created",
-                    "attributes",
+                    "attributes[attribute,value,displayName]",
                     "orgUnitName",
-                    "events",
                     "coordinates",
                 ],
             },
@@ -61,7 +100,7 @@ const MapComponent = () => {
         dataElements: {
             resource: "dataElements",
             params: {
-                fields: ["id", "displayName"],
+                fields: ["id", "name", "displayName"],
                 paging: "false",
             },
         },
@@ -71,53 +110,143 @@ const MapComponent = () => {
         variables: { trackerEntityId: trackerEntityId },
     });
 
+    // Process tracked entity data
     useEffect(() => {
-        if (data?.trackedEntities) {
-            const entityData = data.trackedEntities as any;
-            setEntity(entityData);
-            console.log("Entity data:", entityData);
-
-            const orgUnitId = entityData.enrollments?.[0]?.orgUnit;
-            console.log("orgUnitId:", orgUnitId);
-            const orgUnitName = entityData.enrollments?.[0]?.orgUnitName || 'N/A';
-            setOrgUnitName(orgUnitName);
-
-            const attributes = entityData.attributes || [];
-            const gisCoordinatesAttr = attributes.find((attr: any) => attr.displayName === "GIS Coordinates");
+        if (data) {
+            const apiData = data as APIResponse;
+            const entityData = apiData?.trackedEntities;
             
-            if (gisCoordinatesAttr) {
-                try {
-                    const gisCoordinates = JSON.parse(gisCoordinatesAttr.value.replace(/'/g, '"'));
-                    console.log("GIS Coordinates: ", gisCoordinates);
-                    setTrackedEntityCoordinates({
-                        latitude: gisCoordinates[0],
-                        longitude: gisCoordinates[1],
-                    });
-                } catch (error) {
-                    console.error("Error parsing coordinates:", error);
-                    setTrackedEntityCoordinates({ latitude: 0, longitude: 0 });
+            if (entityData) {
+                setEntity(entityData);
+                console.log("Entity data:", entityData);
+
+                // Extract organization unit information
+                const enrollment = entityData.enrollments?.[0];
+                if (enrollment) {
+                    const orgUnitId = enrollment.orgUnit;
+                    const orgName = enrollment.orgUnitName || entityData.orgUnitName || 'N/A';
+                    
+                    console.log("orgUnitId:", orgUnitId);
+                    setOrgUnitName(orgName);
                 }
+
+                // Extract and parse GIS coordinates
+                const attributes = entityData.attributes || [];
+                console.log("All attributes:", attributes);
+                
+                // Try different attribute patterns for coordinates
+                let coordinatesFound = false;
+                
+                // Look for GIS Coordinates attribute
+                const gisCoordinatesAttr = attributes.find((attr: any) => 
+                    attr.displayName === "GIS Coordinates" || 
+                    attr.displayName?.toLowerCase().includes("coordinates") ||
+                    attr.displayName?.toLowerCase().includes("location")
+                );
+                
+                if (gisCoordinatesAttr && gisCoordinatesAttr.value) {
+                    coordinatesFound = parseCoordinates(gisCoordinatesAttr.value);
+                }
+                
+                // Fallback: check entity-level coordinates
+                if (!coordinatesFound && entityData.coordinates) {
+                    coordinatesFound = parseCoordinates(entityData.coordinates);
+                }
+                
+                // If no coordinates found, set error state
+                if (!coordinatesFound) {
+                    console.warn("No valid coordinates found for tracked entity");
+                    setDataError("Patient location coordinates not available");
+                    // Set default coordinates (you might want to use organization unit coordinates)
+                    setTrackedEntityCoordinates({ latitude: -1.286389, longitude: 36.817223 }); // Nairobi default
+                }
+                
+                setCoordinatesLoaded(true);
+            } else {
+                setDataError("No tracked entity data found");
             }
         }
     }, [data]);
 
+    // Helper function to parse coordinates from various formats
+    const parseCoordinates = (coordinateString: string): boolean => {
+        try {
+            console.log("Parsing coordinates:", coordinateString);
+            
+            // Handle different coordinate formats
+            let coordinates;
+            
+            // Format 1: JSON array string like "[latitude, longitude]"
+            if (coordinateString.startsWith('[') && coordinateString.endsWith(']')) {
+                coordinates = JSON.parse(coordinateString.replace(/'/g, '"'));
+            }
+            // Format 2: Comma-separated values like "latitude,longitude"
+            else if (coordinateString.includes(',')) {
+                const parts = coordinateString.split(',');
+                coordinates = [parseFloat(parts[0].trim()), parseFloat(parts[1].trim())];
+            }
+            // Format 3: Space-separated values
+            else if (coordinateString.includes(' ')) {
+                const parts = coordinateString.split(' ');
+                coordinates = [parseFloat(parts[0].trim()), parseFloat(parts[1].trim())];
+            }
+            // Format 4: Already an array
+            else if (Array.isArray(coordinateString)) {
+                coordinates = coordinateString;
+            }
+            
+            if (coordinates && Array.isArray(coordinates) && coordinates.length >= 2) {
+                const lat = parseFloat(coordinates[0]);
+                const lng = parseFloat(coordinates[1]);
+                
+                // Validate coordinates are reasonable (within world bounds)
+                if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                    console.log("Parsed coordinates:", { latitude: lat, longitude: lng });
+                    setTrackedEntityCoordinates({ latitude: lat, longitude: lng });
+                    return true;
+                }
+            }
+            
+            console.warn("Invalid coordinate format or values:", coordinateString);
+            return false;
+        } catch (error) {
+            console.error("Error parsing coordinates:", error);
+            return false;
+        }
+    };
+
+    // Process data elements metadata
     useEffect(() => {
-        if (data?.dataElements?.dataElements) {
-            const metadata = (data.dataElements as any).dataElements;
-            setDataElementsMetadata(metadata);
-            console.log("Data Elements Metadata:", metadata);
+        if (data) {
+            const apiData = data as APIResponse;
+            const elementsData = apiData?.dataElements?.dataElements;
+            
+            if (elementsData && Array.isArray(elementsData)) {
+                const metadata: DataElementMetadata[] = elementsData.map((element: DataElement) => ({
+                    id: element.id,
+                    displayName: element.displayName || element.name,
+                }));
+                
+                setDataElementsMetadata(metadata);
+                console.log("Data Elements Metadata:", metadata);
+            } else {
+                console.warn("No data elements found in response");
+            }
         }
     }, [data]);
 
+    // Handle heatmap layer updates
     useEffect(() => {
         if (heatmapData.length > 0 && mapRef.current) {
+            // Remove existing heatmap layers
             mapRef.current.eachLayer((layer) => {
                 if (layer instanceof (L as any).HeatLayer) {
                     mapRef.current?.removeLayer(layer);
                 }
             });
 
-            (L as any).heatLayer(heatmapData, {
+            // Add new heatmap layer
+            const heatLayer = (L as any).heatLayer(heatmapData, {
                 radius: 25,
                 blur: 15,
                 maxZoom: 17,
@@ -128,26 +257,59 @@ const MapComponent = () => {
                     0.8: 'orange',
                     1.0: 'red',
                 },
-            }).addTo(mapRef.current);
+            });
+            
+            heatLayer.addTo(mapRef.current);
         }
     }, [heatmapData]);
 
+    // Handle organization unit coordinates from child component
     const handleCoordinatesFetched = (coordinates: [number, number]) => {
+        console.log("Org unit coordinates fetched:", coordinates);
         setOrgUnitCoordinates({
-            latitude: coordinates[1],
+            latitude: coordinates[1],  // Note: coordinate order might need adjustment
             longitude: coordinates[0],
         });
     };
 
-    if (loading) return <div>Loading map data...</div>;
-    if (error) return <p>Error: {error.message}</p>;
+    // Loading and error states
+    if (loading) {
+        return (
+            <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+                <div>Loading map data...</div>
+            </div>
+        );
+    }
 
-    if (trackedEntityCoordinates.latitude === 0 && trackedEntityCoordinates.longitude === 0) {
-        return <div>Loading patient location...</div>;
+    if (error) {
+        return (
+            <div className="alert alert-danger m-3">
+                <h4>Error Loading Data</h4>
+                <p>Error: {error.message}</p>
+                <p>Please check your connection and try again.</p>
+            </div>
+        );
+    }
+
+    if (dataError) {
+        return (
+            <div className="alert alert-warning m-3">
+                <h4>Data Issue</h4>
+                <p>{dataError}</p>
+                <p>Please check the patient data or contact system administrator.</p>
+            </div>
+        );
+    }
+
+    if (!coordinatesLoaded || (trackedEntityCoordinates.latitude === 0 && trackedEntityCoordinates.longitude === 0)) {
+        return (
+            <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+                <div>Loading patient location...</div>
+            </div>
+        );
     }
 
     return (
-        
         <div className="layout" style={{ display: 'flex', height: '100vh' }}>
             {/* Sidebar */}
             <Sidebar selectedEntity={entity} />
@@ -157,8 +319,18 @@ const MapComponent = () => {
                 <div className="card">
                     <div className="card-body">
                         <h5 className="card-title text-center">
-                            Map Showing the Patient's Location and Proximity to Hotspots
+                            Map Showing the Patient's Location and Proximity to Health Facilities
                         </h5>
+                        
+                        {/* Display coordinate information */}
+                        <div className="mb-3">
+                            <small className="text-muted">
+                                Patient Location: {trackedEntityCoordinates.latitude.toFixed(6)}, {trackedEntityCoordinates.longitude.toFixed(6)}
+                                {orgUnitCoordinates.latitude !== 0 && (
+                                    <> | Health Facility: {orgUnitName}</>
+                                )}
+                            </small>
+                        </div>
                         
                         {/* Hidden component to fetch org unit data */}
                         {entity?.enrollments?.[0]?.orgUnit && (
@@ -175,16 +347,25 @@ const MapComponent = () => {
                             attributionControl={true}
                             ref={mapRef}
                         >
-                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                            <TileLayer 
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            />
                             
-                            {/* Render Org Unit Marker */}
+                            {/* Render Organization Unit Marker */}
                             {orgUnitCoordinates.latitude !== 0 && orgUnitCoordinates.longitude !== 0 && (
                                 <Marker position={[orgUnitCoordinates.latitude, orgUnitCoordinates.longitude]}>
-                                    <Popup>Organization Unit: {orgUnitName}</Popup>
+                                    <Popup>
+                                        <div>
+                                            <strong>Health Facility</strong><br />
+                                            {orgUnitName}<br />
+                                            <small>Coordinates: {orgUnitCoordinates.latitude.toFixed(4)}, {orgUnitCoordinates.longitude.toFixed(4)}</small>
+                                        </div>
+                                    </Popup>
                                 </Marker>
                             )}
                             
-                            {/* Render Tracked Entity Marker */}
+                            {/* Render Tracked Entity (Patient) Marker */}
                             <Marker 
                                 position={[trackedEntityCoordinates.latitude, trackedEntityCoordinates.longitude]} 
                                 icon={new L.Icon({
@@ -197,9 +378,34 @@ const MapComponent = () => {
                                     popupAnchor: [0, -38], 
                                 })}
                             >
-                                <Popup>Patient ID: {trackerEntityId}</Popup>
+                                <Popup>
+                                    <div>
+                                        <strong>Patient Location</strong><br />
+                                        ID: {trackerEntityId}<br />
+                                        <small>Coordinates: {trackedEntityCoordinates.latitude.toFixed(4)}, {trackedEntityCoordinates.longitude.toFixed(4)}</small>
+                                    </div>
+                                </Popup>
                             </Marker>
                         </MapContainer>
+                        
+                        {/* Debug Information (remove in production) */}
+                        {process.env.NODE_ENV === 'development' && (
+                            <div className="mt-3">
+                                <details>
+                                    <summary>Debug Information</summary>
+                                    <pre style={{ fontSize: '12px', backgroundColor: '#f8f9fa', padding: '10px' }}>
+                                        {JSON.stringify({
+                                            trackerEntityId,
+                                            coordinatesLoaded,
+                                            trackedEntityCoordinates,
+                                            orgUnitCoordinates,
+                                            orgUnitName,
+                                            dataElementsCount: dataElementsMetadata.length
+                                        }, null, 2)}
+                                    </pre>
+                                </details>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

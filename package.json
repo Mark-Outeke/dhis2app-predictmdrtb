@@ -1,7 +1,7 @@
 {
   "name": "dhis2-app",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.1.0",
+  "description": "DHIS2 Machine Learning Prediction App for MDR-TB Risk Assessment - Predicts likelihood of DSTB patients developing Multi-Drug Resistant Tuberculosis using TensorFlow.js",
   "license": "BSD-3-Clause",
   "private": true,
   "scripts": {
