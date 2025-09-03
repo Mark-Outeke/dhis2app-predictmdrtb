@@ -5,46 +5,6 @@ import {DataTable, DataTableHead, DataTableBody, DataTableRow,DataTableCell, Cir
 import { useHistory } from 'react-router-dom';
 import './TrackerDataTable.css';
 
-// Base query definition
-const createQuery = (searchTerm: string = '', page: number = 1, pageSize: number = 50) => {
-    const params: any = {
-        ou: 'akV6429SUqu',
-        ouMode: 'DESCENDANTS',
-        program: 'wfd9K4dQVDR',
-        fields: [
-            'trackedEntityInstance',
-            'orgUnitName',
-            'created',
-            'attributes',
-            'enrollments',
-            'coordinates',
-        ],
-        page: page,
-        pageSize: pageSize,
-        totalPages: true,
-    };
-
-    // Add search filters if search term exists
-    if (searchTerm && searchTerm.trim()) {
-        // Search across multiple attributes using DHIS2 API filters
-        // You can add multiple attribute filters for comprehensive search
-        params.filter = [
-            `ZkNZOxS24k7:ilike:${searchTerm}`, // Unit TB No/DR TB No/Leprosy N
-            `ENRjVGxVL6l:ilike:${searchTerm}`, // Last Name
-            `sB1IHYu2xQT:ilike:${searchTerm}`, // First Name
-            `jWjSY7cktaQ:ilike:${searchTerm}`, // Patient Name
-            `Ewi7FUfcHAD:ilike:${searchTerm}`, // National ID
-        ];
-    }
-
-    return {
-        trackedEntities: {
-            resource: 'trackedEntityInstances',
-            params,
-        },
-    };
-};
-
 // Type definitions for query results
 type Attribute = {
     attribute: string;
@@ -109,29 +69,54 @@ export default function TrackerDataTable({ onEntitySelect }: TrackerDataTablePro
         const timer = setTimeout(() => {
             setDebouncedSearchTerm(searchTerm);
             setPage(1); // Reset to first page when searching
-        }, 500); // 500ms delay
+        }, 300);
 
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
-    // Create dynamic query based on search term and pagination
-    const query = createQuery(debouncedSearchTerm, page, pageSize);
+    // Create query object that changes when pagination or search changes
+    const queryParams: any = {
+        ou: 'akV6429SUqu',
+        ouMode: 'DESCENDANTS',
+        program: 'wfd9K4dQVDR',
+        fields: [
+            'trackedEntityInstance',
+            'orgUnitName',
+            'created',
+            'attributes',
+            'enrollments',
+            'coordinates',
+        ],
+        page: page,
+        pageSize: pageSize,
+        totalPages: true,
+        order: 'created:desc',
+    };
+
+    // Add search filters if search term exists
+    if (debouncedSearchTerm && debouncedSearchTerm.trim()) {
+        const searchFilters = [
+            `ZkNZOxS24k7:ilike:${debouncedSearchTerm}`,
+            `ENRjVGxVL6l:ilike:${debouncedSearchTerm}`,
+            `sB1IHYu2xQT:ilike:${debouncedSearchTerm}`,
+            `jWjSY7cktaQ:ilike:${debouncedSearchTerm}`,
+            `Ewi7FUfcHAD:ilike:${debouncedSearchTerm}`,
+        ];
+        queryParams.filter = searchFilters.join(',');
+    }
+
+    // The query object that will trigger re-fetching when it changes
+    const query = {
+        trackedEntities: {
+            resource: 'trackedEntityInstances',
+            params: queryParams,
+        },
+    };
     
     // Use the dynamic query
-    const { loading, error, data, refetch } = useDataQuery<QueryResult>(query);
+    const { loading, error, data } = useDataQuery<QueryResult>(query);
 
-    // Refetch when search term or pagination changes
-    useEffect(() => {
-        if (refetch) {
-            refetch({
-                trackedEntities: {
-                    resource: 'trackedEntityInstances',
-                    params: createQuery(debouncedSearchTerm, page, pageSize).trackedEntities.params,
-                },
-            });
-        }
-    }, [debouncedSearchTerm, page, pageSize, refetch]);
-
+    // Early returns for loading and error states
     if (loading) return <CircularLoader />;
     if (error) return <p>Error: {error.message}</p>;
 
@@ -142,14 +127,18 @@ export default function TrackerDataTable({ onEntitySelect }: TrackerDataTablePro
         setSearchTerm(event.target.value);
     };
 
-    const handlePageChange = (newPage: number) => {
+    // These handlers will trigger re-renders and new queries
+    const handlePageChange = useCallback((newPage: number) => {
+        console.log('Page changed to:', newPage); // Debug log
         setPage(newPage);
-    };
+    }, []);
 
-    const handlePageSizeChange = (newPageSize: number) => {
-        setPageSize(newPageSize);
-        setPage(1);
-    };
+    const handlePageSizeChange = useCallback((newPageSize: number) => {
+        console.log('Page size changed to:', newPageSize); // Debug log
+        const numericPageSize = (newPageSize);
+        setPageSize(numericPageSize);
+        setPage(1); // Reset to first page when changing page size
+    }, []);
 
     const rows = instances.map((instance) => {
         const getAttribute = (code: string) =>
@@ -177,6 +166,12 @@ export default function TrackerDataTable({ onEntitySelect }: TrackerDataTablePro
         );
     });
 
+    // Debug logs
+    console.log('Current page:', page);
+    console.log('Current pageSize:', pageSize);
+    console.log('Pager data:', pager);
+    console.log('Total instances:', instances.length);
+
     return (
         <div className="layout">
             <Sidebar selectedEntity={selectedEntity} />
@@ -184,7 +179,7 @@ export default function TrackerDataTable({ onEntitySelect }: TrackerDataTablePro
                 <div style={{ marginBottom: '20px' }}>
                     <input
                         type="text"
-                        placeholder="Search across all patients (Name, ID, TB Number)..."
+                        placeholder="Search entire database (Name, ID, TB Number)..."
                         value={searchTerm}
                         onChange={handleSearchChange}
                         style={{ 
@@ -196,7 +191,7 @@ export default function TrackerDataTable({ onEntitySelect }: TrackerDataTablePro
                     />
                     {loading && (
                         <div style={{ marginTop: '10px', color: '#666' }}>
-                            Searching...
+                            Searching entire database...
                         </div>
                     )}
                 </div>
@@ -228,13 +223,17 @@ export default function TrackerDataTable({ onEntitySelect }: TrackerDataTablePro
                         hidePageSummary={false}
                         onPageChange={handlePageChange}
                         onPageSizeChange={handlePageSizeChange}
+                        pageSizes={["10", "25", "50", "100"]}
                     />
                 )}
 
                 {pager && (
                     <div style={{ marginTop: '10px', color: '#666', fontSize: '14px' }}>
-                        Showing {((pager.page - 1) * pager.pageSize) + 1} to {Math.min(pager.page * pager.pageSize, pager.total)} of {pager.total} results
-                        {searchTerm && ` for "${searchTerm}"`}
+                        {searchTerm ? (
+                            <>Found {pager.total} results in entire database for "{searchTerm}" (newest first)</>
+                        ) : (
+                            <>Showing {((pager.page - 1) * pager.pageSize) + 1} to {Math.min(pager.page * pager.pageSize, pager.total)} of {pager.total} total records (newest first)</>
+                        )}
                     </div>
                 )}
             </div>

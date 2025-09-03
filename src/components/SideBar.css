@@ -1,0 +1,175 @@
+.sidebar-container {
+  background: #f8f9fa !important;
+  border-right: 1px solid #e9ecef;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  padding: 1rem;
+  border-bottom: 1px solid #e9ecef;
+  background: #ffffff;
+}
+
+.sidebar-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #495057;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 1rem 0;
+}
+
+.menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.menu-item {
+  margin: 0.5rem 0.75rem;
+}
+
+.menu-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #495057;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  font-family: inherit;
+}
+
+.menu-button:hover:not(.disabled) {
+  background: #e9ecef;
+  border-color: #adb5bd;
+  color: #212529;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.menu-button:active:not(.disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.menu-button.active {
+  background: #007bff !important;
+  border-color: #007bff !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+}
+
+.menu-button.active:hover {
+  background: #0056b3 !important;
+  border-color: #0056b3 !important;
+  color: #ffffff !important;
+}
+
+.menu-button.disabled {
+  background: #f8f9fa;
+  border-color: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+.menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.75rem;
+  font-size: 1rem;
+  min-width: 16px;
+  color: inherit;
+}
+
+/* CSS Icons */
+.icon-chart::before {
+  content: '📊';
+  font-size: 1.2em;
+}
+
+.icon-info::before {
+  content: 'ℹ️';
+  font-size: 1.2em;
+}
+
+.icon-map::before {
+  content: '🗺️';
+  font-size: 1.2em;
+}
+
+.menu-text {
+  flex: 1;
+  text-align: left;
+  font-size: inherit;
+  color: inherit;
+}
+
+.sidebar-footer {
+  padding: 1rem;
+  border-top: 1px solid #e9ecef;
+  background: #f8f9fa;
+}
+
+.selected-patient-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.info-label {
+  font-size: 0.75rem;
+  color: #6c757d;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.patient-id {
+  font-size: 0.875rem;
+  color: #495057;
+  font-weight: 600;
+  background: #ffffff;
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+  font-family: 'Courier New', monospace;
+  word-break: break-all;
+}
+
+/* Focus states for accessibility */
+.menu-button:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+.menu-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .menu-button {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+  
+  .menu-icon {
+    font-size: 1.1rem;
+    margin-right: 1rem;
+  }
+}

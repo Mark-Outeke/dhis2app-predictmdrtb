@@ -271,9 +271,6 @@ const TrackedEntityDetails = () => {
     return <div id="line-chart" className="chart-container"></div>;
   };
 
-  // All your existing useEffect hooks remain the same...
-  // (I'm keeping the existing useEffect code as it is for brevity)
-
   // GEOJSON LOADING
  useEffect(() => {
   const fetchDistrictsGeoJSON = async () => {
@@ -604,38 +601,78 @@ const TrackedEntityDetails = () => {
 
   return (
     <div>
+      
       <div className="layout">
         <Sidebar selectedEntity={entity} />
         <div className="dashboard-container">
-          {/* HEADER SECTION */}
-
-          {/* HEADER SECTION WITH NAVIGATION */}
-          <div className="dashboard-header">
-            {/* Navigation Buttons */}
-            <div className="navigation-buttons">
+          {/* PROMINENT NAVIGATION BAR AT TOP */}
+          <div style={{ 
+            position: "sticky", 
+            top: 0, 
+            zIndex: 1000, 
+            backgroundColor: "#f8f9fa", 
+            padding: "15px 20px", 
+            borderBottom: "1px solid #e0e0e0", 
+            marginBottom: "20px",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+          }}>
+            <div className="navigation-buttons" style={{
+              display: "flex",
+              gap: "15px",
+              alignItems: "center",
+              justifyContent: "flex-start"
+            }}>
               <Button
                 onClick={() => history.push("/TrackerDataTable")}
                 secondary
-                className="nav-button"
+                style={{
+                  padding: "12px 24px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  backgroundColor: "#ffffff",
+                  border: "2px solid #007bff",
+                  color: "#007bff",
+                  borderRadius: "6px",
+                  minWidth: "180px"
+                }}
               >
                 ← Back to Tracker Table
               </Button>
               <Button
                 onClick={() => window.location.reload()}
                 secondary
-                className="nav-button"
+                style={{
+                  padding: "12px 20px",
+                  fontSize: "14px",
+                  backgroundColor: "#f8f9fa",
+                  border: "1px solid #6c757d",
+                  color: "#6c757d",
+                  borderRadius: "6px"
+                }}
               >
                 🔄 Refresh
               </Button>
               <Button
                 onClick={handlePredictionsClick}
                 primary
-                className="nav-button"
+                style={{
+                  padding: "12px 24px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  backgroundColor: "#28a745",
+                  border: "none",
+                  color: "white",
+                  borderRadius: "6px",
+                  minWidth: "160px"
+                }}
               >
                 🎯 View Predictions
               </Button>
             </div>
+          </div>
 
+          {/* HEADER SECTION */}
+          <div className="dashboard-header">
             {/* Title Section */}
             <div className="header-title-section">
               <h2 className="dashboard-title">Patient's Dashboard</h2>
@@ -1151,11 +1188,40 @@ const TrackedEntityDetails = () => {
             </div>
           </div>
           {/* ACTION BUTTONS */}
-          <div className="action-buttons">
+          <div className="action-buttons" style={{
+            display: "flex",
+            gap: "15px",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: "20px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "8px",
+            marginTop: "30px"
+          }}>
+            <Button
+              onClick={() => history.push("/TrackerDataTable")}
+              secondary
+              style={{
+                padding: "12px 24px",
+                fontSize: "14px",
+                fontWeight: "600",
+                backgroundColor: "#ffffff",
+                border: "2px solid #007bff",
+                color: "#007bff",
+                borderRadius: "6px"
+              }}
+            >
+              ← Back to Tracker Table
+            </Button>
             <Button
               onClick={handlePredictionsClick}
               primary
               className="prediction-button"
+              style={{
+                padding: "12px 24px",
+                fontSize: "14px",
+                fontWeight: "600"
+              }}
             >
               View Detailed Predictions
             </Button>

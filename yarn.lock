@@ -7649,7 +7649,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react-router-dom@npm:^5.3.3":
+"@types/react-router-dom@npm:5":
   version: 5.3.3
   resolution: "@types/react-router-dom@npm:5.3.3"
   dependencies:
@@ -11083,7 +11083,7 @@ __metadata:
     "@types/leaflet.heat": "npm:^0.2.4"
     "@types/react": "npm:^16.8.0"
     "@types/react-dom": "npm:^16.8.0"
-    "@types/react-router-dom": "npm:^5.3.3"
+    "@types/react-router-dom": "npm:5"
     chart.js: "npm:^4.4.7"
     d3: "npm:^7.9.0"
     i: "npm:^0.3.7"
@@ -11095,6 +11095,7 @@ __metadata:
     react: "npm:^18.3.1"
     react-chartjs-2: "npm:^5.2.0"
     react-dom: "npm:^18.3.1"
+    react-icons: "npm:^5.5.0"
     react-leaflet: "npm:3.2.5"
     react-leaflet-heatmap-layer: "npm:^2.0.0"
     react-router-dom: "npm:5.3.4"
@@ -18913,6 +18914,15 @@ __metadata:
     final-form: ^4.20.4
     react: ^16.8.0 || ^17.0.0 || ^18.0.0
   checksum: 10c0/b572645d88cb4fee95e9201ce00b623d6e3d8b19484dd844ddc63fb494d43d2e6fcd0c59b1cbad72c2c9ae5d39066bd450debc9cacfbd9a46e2c8195a09fa4eb
+  languageName: node
+  linkType: hard
+
+"react-icons@npm:^5.5.0":
+  version: 5.5.0
+  resolution: "react-icons@npm:5.5.0"
+  peerDependencies:
+    react: "*"
+  checksum: 10c0/a24309bfc993c19cbcbfc928157e53a137851822779977b9588f6dd41ffc4d11ebc98b447f4039b0d309a858f0a42980f6bfb4477fb19f9f2d1bc2e190fcf79c
   languageName: node
   linkType: hard
 

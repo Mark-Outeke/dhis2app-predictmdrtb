@@ -730,44 +730,99 @@ const PredictionComponent: React.FC<PredictionComponentProps> = ({ trackedEntity
         return <div>Processing patient data for predictions...</div>;
     }
 
+
     // Card styles
     const cardStyle: React.CSSProperties = {
         position: 'relative',
         width: '300px',
         padding: '20px',
-        border: '1px solid #ccc',
+        border: '1px solid #e0e0e0',
         borderRadius: '8px',
-        backgroundColor: '#f9f9f9',
+        backgroundColor: '#ffffff',
         margin: '20px 0',
         textAlign: 'left',
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
     };
 
     const likelihoodText = averagePrediction !== undefined ? (averagePrediction >= 0.5 ? 'Yes' : 'No') : 'No';
 
     return (
-        <div>
-            <h1>Prediction Overview</h1>
-            <p>This is presented as a summary for predicting the likelihood of a DSTB Patient to develop MDR-TB.</p>
+        <div style={{ padding: '16px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+            <h1 style={{ color: '#212934', fontSize: '24px', fontWeight: 600, marginBottom: '8px' }}>
+                Prediction Overview
+            </h1>
+            <p style={{ color: '#4a5768', fontSize: '14px', marginBottom: '24px' }}>
+                This is presented as a summary for predicting the likelihood of a DSTB Patient to develop MDR-TB.
+            </p>
 
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
                 {chartData && (
                     <div style={{ ...cardStyle, width: '400px' }}>
-                        <Doughnut data={chartData} />
-                        <p>Final Prediction Probability: {Math.round((averagePrediction || 0) * 1000) / 1000}</p>
-                        <p>Patient Likely to Develop MDRTB: {likelihoodText}</p>
+                        <Doughnut 
+                            data={{
+                                ...chartData,
+                                datasets: [{
+                                    ...chartData.datasets[0],
+                                    backgroundColor: ['#e74c3c', '#2e7d32'], // Red for No, Green for Yes
+                                    hoverBackgroundColor: ['#c0392b', '#1b5e20'],
+                                    borderWidth: 2,
+                                    borderColor: '#ffffff',
+                                }]
+                            }}
+                            options={{
+                                plugins: {
+                                    legend: {
+                                        labels: {
+                                            color: '#212934',
+                                            font: {
+                                                size: 14,
+                                                weight: 500
+                                            }
+                                        }
+                                    }
+                                }
+                            }}
+                        />
+                        <p style={{ color: '#212934', fontSize: '14px', fontWeight: 500, marginTop: '16px' }}>
+                            Final Prediction Probability: {Math.round((averagePrediction || 0) * 1000) / 1000}
+                        </p>
+                        <p style={{ 
+                            color: averagePrediction !== undefined && averagePrediction >= 0.5 ? '#d32f2f' : '#2e7d32', 
+                            fontSize: '16px', 
+                            fontWeight: 600 
+                        }}>
+                            Patient Likely to Develop MDRTB: {likelihoodText}
+                        </p>
                     </div>
                 )}
 
                 {featureImportanceChartData && (
-                    <div style={{ width: '800px', height: '500px' }}>
+                    <div style={{ 
+                        width: '800px', 
+                        height: '500px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                    }}>
                         <Bar
-                            data={featureImportanceChartData}
+                            data={{
+                                ...featureImportanceChartData,
+                                datasets: [{
+                                    ...featureImportanceChartData.datasets[0],
+                                    backgroundColor: '#1976d2', // DHIS2 primary blue
+                                    hoverBackgroundColor: '#1565c0',
+                                    borderColor: '#1976d2',
+                                    borderWidth: 1,
+                                }]
+                            }}
                             options={{
                                 indexAxis: 'y',
                                 elements: {
                                     bar: {
-                                        borderWidth: 2,
-                                        borderColor: '#fff',
+                                        borderWidth: 1,
+                                        borderColor: '#1976d2',
                                     },
                                 },
                                 plugins: {
@@ -775,7 +830,11 @@ const PredictionComponent: React.FC<PredictionComponentProps> = ({ trackedEntity
                                     title: {
                                         display: true,
                                         text: 'Contributing Factors',
-                                        font: { size: 20 },
+                                        font: { 
+                                            size: 20,
+                                            weight: 600
+                                        },
+                                        color: '#212934'
                                     },
                                 },
                                 responsive: true,
@@ -786,21 +845,37 @@ const PredictionComponent: React.FC<PredictionComponentProps> = ({ trackedEntity
                                         title: {
                                             display: true,
                                             text: 'Importance Score',
-                                            font: { size: 16 },
+                                            font: { 
+                                                size: 16,
+                                                weight: 500
+                                            },
+                                            color: '#4a5768'
                                         },
                                         ticks: {
                                             font: { size: 14 },
+                                            color: '#4a5768'
                                         },
+                                        grid: {
+                                            color: '#e0e0e0'
+                                        }
                                     },
                                     y: {
                                         title: {
                                             display: true,
                                             text: 'Features',
-                                            font: { size: 16 },
+                                            font: { 
+                                                size: 16,
+                                                weight: 500
+                                            },
+                                            color: '#4a5768'
                                         },
                                         ticks: {
                                             font: { size: 14 },
+                                            color: '#4a5768'
                                         },
+                                        grid: {
+                                            color: '#e0e0e0'
+                                        }
                                     },
                                 },
                             }}
@@ -810,6 +885,6 @@ const PredictionComponent: React.FC<PredictionComponentProps> = ({ trackedEntity
             </div>
         </div>
     );
-};
+}
 
 export default PredictionComponent;
