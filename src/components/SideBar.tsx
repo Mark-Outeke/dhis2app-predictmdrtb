@@ -36,6 +36,13 @@ function Sidebar({ selectedEntity }: SidebarProps) {
       path: `/Map/${selectedEntity?.trackedEntityInstance || ''}`,
       requiresEntity: true,
       description: 'Geographic Visualization'
+    },
+    {
+      label: 'Table Testing',
+      iconClass: 'icon-table',
+      path: '/TableTesting',
+      requiresEntity: false,
+      description: 'Simple Table Testing View'
     }
   ];
 

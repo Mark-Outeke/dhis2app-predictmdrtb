@@ -3,6 +3,7 @@ import { useDataQuery } from '@dhis2/app-runtime';
 import i18n from '@dhis2/d2-i18n';
 import React, { useState } from 'react';
 import TrackerDataTable, { TrackedEntityInstance } from './components/TrackerDataTable';
+import TableTesting from './components/TableTesting';
 import TrackedEntityDetails from './components/TrackedEntityDetails';
 import PredictionComponent from './components/PredictionProcessor'; // Import the PredictionComponent
 import MapComponent from './components/MapComponent'; // Import the MapComponent
@@ -51,6 +52,12 @@ const MyApp: React.FC = () => {
                 
                 {/* Dynamic route with parameter for TrackedEntityDetails */}
                 <Route path="/TrackedEntityDetails/:trackerEntityId" component={TrackedEntityDetails} />
+
+                {/* Table Testing route */}
+                <Route path="/TableTesting">
+                    <TableTesting/>
+                </Route>
+
 
                 {/* Optionally, if you want to display the prediction component */}
                 {selectedEntity && (
